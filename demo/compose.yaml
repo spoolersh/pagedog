@@ -1,0 +1,89 @@
+# The demo: a service that fails on request, the observability stack that
+# notices, and pagedog investigating with workers it runs as containers.
+# Self-contained: pagedog comes as its published image, the rest is here.
+#
+#   ANTHROPIC_API_KEY=... docker compose -f demo/compose.yaml up --build
+#
+# then open http://127.0.0.1:8081 and press 500.
+
+name: pagedog
+
+services:
+  memspoolerd:
+    # The Spooler server in memory: any bearer token authenticates, nothing
+    # persists. Not published: only the stack talks to it.
+    image: spoolersh/memspoolerd
+
+    # Quiet: the demo's story is in pagedog's and the workers' logs.
+    command: ["--log.level", "WARN"]
+    volumes:
+      # The two queues, declared so a restarted server has them again:
+      # https://docs.spooler.sh/local#declaring-queues
+      - ./queues.d:/etc/spooler/queues.d:ro
+
+  pagedog:
+    # The published image. To run the checkout instead, `make pagedog-image`
+    # at the repository root puts a local build under this tag.
+    image: spoolersh/pagedog
+    depends_on:
+      memspoolerd:
+        condition: service_healthy
+    command: ["server", "--config", "/etc/pagedog/pagedog.yaml"]
+    environment:
+      SPOOLER_API_KEY: local
+      # The token Alertmanager sends; alertmanager.yaml carries the same.
+      ALERTMANAGER_TOKEN: pagedog
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY for the workers}
+    volumes:
+      - ./pagedog.yaml:/etc/pagedog/pagedog.yaml:ro
+      # The launcher runs its workers as containers on this engine.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Where the workers put their reports, and the launcher reads them.
+      - reports:/reports
+
+  demoapp:
+    build: ./demoapp
+    image: pagedog-demoapp
+    # A fixed name, so its logs are {container="demoapp"} in Loki.
+    container_name: demoapp
+    command: ["--listen", ":8081"]
+    ports:
+      - "127.0.0.1:8081:8081"
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      # The config's path in the container is the image's default.
+      - ./prometheus.yaml:/etc/prometheus/prometheus.yml:ro
+      - ./alerts.yaml:/etc/prometheus/alerts.yaml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager
+    volumes:
+      # Likewise the image's default path.
+      - ./alertmanager.yaml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+
+  loki:
+    image: grafana/loki
+    # Quiet, as memspoolerd. The config flag is the image's own, repeated
+    # because the command replaces it.
+    command: ["-config.file=/etc/loki/local-config.yaml", "-log.level=warn"]
+
+  alloy:
+    # Collects every container's logs into Loki.
+    image: grafana/alloy
+    volumes:
+      - ./config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      # Where it keeps its place in each container's log. Without it, a
+      # recreated alloy ships every log line again from the start, and the
+      # burst trips Loki's ingestion rate limit.
+      - alloy:/var/lib/alloy/data
+
+volumes:
+  reports:
+  alloy:

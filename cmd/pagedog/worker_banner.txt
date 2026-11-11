@@ -1,0 +1,20 @@
+
+pagedog worker {{.Version}} ({{.Revision}}) -- one incident, investigated.
+https://github.com/spoolersh/pagedog
+
+built:	{{.Built}}
+config:	{{.Config}}
+log level:	{{.LogLevel}}
+
+spooler:	{{.Spooler}}
+api key:	{{.APIKey}}
+queues:	{{.Queues}}
+
+model:	{{.Model}}
+model key:	{{.ModelKey}}
+turns:	{{.Turns}}
+task:	{{.Task}}
+{{range .Tools}}tool:	{{.}}
+{{end}}report:	{{.Report}}
+
+

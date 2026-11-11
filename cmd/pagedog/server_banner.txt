@@ -1,0 +1,30 @@
+
+pagedog {{.Version}} ({{.Revision}}) -- your on-call investigation companion.
+https://github.com/spoolersh/pagedog
+
+built:	{{.Built}}
+config:	{{.Config}}
+log level:	{{.LogLevel}}
+
+spooler:	{{.Spooler}}
+api key:	{{.APIKey}}
+queues:	{{.Queues}}
+
+webhook:	{{.Listen}}
+{{range .Sources}}source:	{{.Key}}, {{.Value}}
+{{end}}
+workers:	{{.Workers}}
+{{range .Env}}env:	{{.Key}} {{.Value}}
+{{end}}{{range .Files}}file:	{{.Key}} {{.Value}}
+{{end}}{{if .WorkerSpooler}}worker spooler:	{{.WorkerSpooler}}
+{{end}}
+model:	{{.Model}}
+model key:	{{.ModelKey}}
+turns:	{{.Turns}}
+task:	{{.Task}}
+{{range .Tools}}tool:	{{.}}
+{{end}}report:	{{.Report}}
+{{range .Notify}}notify:	{{.}}
+{{end}}
+
+

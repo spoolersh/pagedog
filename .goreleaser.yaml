@@ -1,0 +1,40 @@
+# Builds the release binaries and the archives from a tag; the release
+# workflow runs it. The version is the tag's, written into internal/stamp
+# with the revision and the build time, so a release binary, the image and
+# a go install all report themselves the same way.
+version: 2
+
+project_name: pagedog
+
+builds:
+  - main: ./cmd/pagedog
+    binary: pagedog
+    env:
+      - CGO_ENABLED=0
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w
+      - -X github.com/spoolersh/pagedog/internal/stamp.version={{ .Version }}
+      - -X github.com/spoolersh/pagedog/internal/stamp.revision={{ .ShortCommit }}
+      - -X github.com/spoolersh/pagedog/internal/stamp.built={{ .Date }}
+    goos:
+      - linux
+      - darwin
+    goarch:
+      - amd64
+      - arm64
+
+archives:
+  - name_template: '{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}'
+
+checksum:
+  name_template: checksums.txt
+
+# A tag with a prerelease suffix (v0.1.0-rc1) is published as one, so
+# GitHub's latest release skips it.
+release:
+  prerelease: auto
+
+changelog:
+  use: git

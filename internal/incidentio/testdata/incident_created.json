@@ -1,0 +1,44 @@
+{
+  "event_type": "public_incident.incident_created_v2",
+  "public_incident.incident_created_v2": {
+    "id": "01JCK3Y8Q4V3ZJ4M0X7G2P9N6B",
+    "reference": "INC-123",
+    "name": "Checkout is failing for every customer",
+    "summary": "The checkout service answers 500 to every request since 10:00 UTC.",
+    "permalink": "https://app.incident.io/pagedog/incidents/123",
+    "mode": "standard",
+    "visibility": "public",
+    "created_at": "2026-11-12T10:00:00.000000Z",
+    "updated_at": "2026-11-12T10:00:00.000000Z",
+    "last_activity_at": "2026-11-12T10:00:00.000000Z",
+    "severity": {
+      "id": "01FCNDV6P870EA6S7TK1DSYDG0",
+      "name": "Critical",
+      "description": "Issues with **high impact**.",
+      "rank": 3,
+      "created_at": "2021-08-17T13:28:57.801578Z",
+      "updated_at": "2021-08-17T13:28:57.801578Z"
+    },
+    "incident_status": {
+      "id": "01FCNDV6P870EA6S7TK1DSYD5H",
+      "name": "Investigating",
+      "description": "We are investigating.",
+      "category": "live",
+      "rank": 1,
+      "created_at": "2021-08-17T13:28:57.801578Z",
+      "updated_at": "2021-08-17T13:28:57.801578Z"
+    },
+    "slack_team_id": "T02A1FSLE8J",
+    "slack_channel_id": "C02AW36C1M5",
+    "slack_channel_name": "inc-123-checkout-is-failing",
+    "creator": {
+      "api_key": {
+        "id": "01G0J1EXE7AXZ2C93K61WBPYEH",
+        "name": "Alertmanager"
+      }
+    },
+    "incident_role_assignments": [],
+    "custom_field_entries": [],
+    "team_ids": []
+  }
+}

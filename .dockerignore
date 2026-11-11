@@ -1,0 +1,7 @@
+.git/
+_bin/
+demo/
+dist/
+reports/
+worker
+report.md
