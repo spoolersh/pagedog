@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>demoapp</title>
+<style>
+  body { font: 16px/1.5 system-ui, sans-serif; max-width: 48rem; margin: 2rem auto; padding: 0 1rem; }
+  button { font: inherit; padding: .5rem 1rem; margin-right: .5rem; }
+  article { border-top: 1px solid #ddd; padding: 1rem 0; }
+  .meta { color: #666; }
+  pre { white-space: pre-wrap; background: #f6f6f6; padding: 1rem; }
+</style>
+</head>
+<body>
+<h1>demoapp</h1>
+<p>One button answers 200, the other 500. Prometheus counts them, Alertmanager
+pages pagedog, a worker investigates, and the report lands below.</p>
+<p>
+  <input id="text" placeholder="text to send along" size="40">
+  <button data-action="/ok">200</button>
+  <button data-action="/fail">500</button>
+  <span id="status" class="meta"></span>
+</p>
+<div id="live">
+<h2>Metrics</h2>
+<pre>{{.Metrics}}</pre>
+<h2>Alerts</h2>
+{{range .Alerts}}
+<article>
+  <h3>[{{.Status}}] {{index .Labels "alertname"}}</h3>
+  <p class="meta">{{index .Labels "severity"}} &middot; started {{.StartsAt.Format "15:04:05"}} &middot; received {{.ReceivedAt.Format "15:04:05"}}</p>
+  {{with index .Annotations "description"}}<p>{{.}}</p>{{end}}
+</article>
+{{else}}
+<p>No alerts yet.</p>
+{{end}}
+<h2>Reports</h2>
+{{range .Reports}}
+<article>
+  <h3>[{{.Incident.Severity}}] {{.Incident.Title}}</h3>
+  <p class="meta">{{.Incident.Key}} &middot; received {{.ReceivedAt.Format "15:04:05"}}</p>
+  {{if .Report.Text}}<pre>{{.Report.Text}}</pre>{{end}}
+  {{if .Report.URL}}<p><a href="{{.Report.URL}}">{{.Report.URL}}</a></p>{{end}}
+</article>
+{{else}}
+<p>No reports yet.</p>
+{{end}}
+</div>
+<script>
+// refresh fetches the page and swaps the live part in place: the text field
+// and its status stay as they are.
+async function refresh() {
+  const res = await fetch('/');
+  const doc = new DOMParser().parseFromString(await res.text(), 'text/html');
+  document.getElementById('live').innerHTML = doc.getElementById('live').innerHTML;
+}
+for (const b of document.querySelectorAll('button[data-action]')) {
+  b.addEventListener('click', async () => {
+    const text = document.getElementById('text');
+    const res = await fetch(b.dataset.action, {
+      method: 'POST',
+      body: new URLSearchParams({text: text.value}),
+    });
+    document.getElementById('status').textContent = res.status + ': ' + await res.text();
+    text.value = '';
+    refresh();
+  });
+}
+setInterval(refresh, 5000);
+</script>
+</body>
+</html>

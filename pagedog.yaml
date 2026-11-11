@@ -1,0 +1,225 @@
+# Pagedog's configuration: pagedog server --config pagedog.yaml.
+# Every possible setting is here. A commented setting shows its default, or an
+# alternative to the one above it.
+#
+# Secrets never written here; each secret points where it comes from:
+#  - {env: NAME}
+#  - {file: PATH}
+#  - {exec: {cmd: COMMAND, args: [ARGS...]}}
+# The variable names are yours; these examples use the other side's own
+# where it has one, as Spooler's CLI reads SPOOLER_API_KEY.
+
+# The Spooler server, the spool, and the two queues on it.
+spooler:
+  host: api.spooler.sh
+  api_key: {env: SPOOLER_API_KEY}
+  spool: default
+
+  # For the local in-memory server only, see https://docs.spooler.sh/local:
+  # no_tls: false
+
+  # The two queues, by name. Pagedog creates neither and sets nothing on
+  # them: make them first, with the settings the README's "Running
+  # actually" section explains, and pagedog refuses to start while one is
+  # missing.
+
+  # Where incidents go, and the workers take them from.
+  incidents: incidents
+
+  # Where the workers put their reports.
+  reports: reports
+
+# The HTTP server where incident notifications come to.
+# Each source is mounted at /webhook/<source>.
+webhook:
+  # The host:port to bind to.
+  listen: :7070
+  sources:
+    # Alertmanager's webhook receiver, with the bearer token it is
+    # configured to send: an incident per firing alert.
+    # - alertmanager:
+    #     token: {env: ALERTMANAGER_TOKEN}
+    #
+    # incident.io's webhooks, signed under the endpoint's signing secret: an
+    # incident is made of every incident_created event.
+    # - incidentio:
+    #     signing_secret: {env: INCIDENTIO_SIGNING_SECRET}
+    #
+    # PagerDuty's v3 webhooks, signed under the subscription's secret: an
+    # incident is made of every incident.triggered event.
+    # - pagerduty:
+    #     secret: {env: PAGERDUTY_SECRET}
+
+# How many workers run, and how.
+workers:
+  # How many run even with nothing to do.
+  # min: 0
+
+  # How many run at most.
+  max: 3
+
+  # A worker's environment is what its runtime lists under env, and nothing
+  # of this process's. A value is written as itself or, for a secret, as
+  # where it comes from. The worker reads its Spooler API key as
+  # PAGEDOG_SPOOLER_API_KEY, the one name pagedog fixes; whose key it is
+  # this file says: here this process's own, not necessarily.
+  runtime:
+    # As child processes of this one, each running pagedog worker.
+    exec:
+      # The program to run: a path, or a name looked up in this process's
+      # PATH. Left out, this very pagedog.
+      # path: /usr/local/bin/pagedog
+      env:
+        PAGEDOG_SPOOLER_API_KEY: {env: SPOOLER_API_KEY}
+        ANTHROPIC_API_KEY: {env: ANTHROPIC_API_KEY}
+
+        # And whatever the worker's MCP servers below take from it.
+        # SOME_SECRET: {file: path/to/some/secret/file}
+
+      # How much time a worker has after SIGTERM before it is killed.
+      # stop_timeout: 10s
+       
+    # Or as containers on the engine $DOCKER_HOST points to.
+    #
+    # docker:
+    #   # The image to run workers from: this pagedog's own, as a rule.
+    #   image: spoolersh/pagedog
+    #   env:
+    #     PAGEDOG_SPOOLER_API_KEY: {env: SPOOLER_API_KEY}
+    #     ANTHROPIC_API_KEY: {env: ANTHROPIC_API_KEY}
+    #
+    #   # The network a worker joins, such as a compose project's; left
+    #   # out, the engine's default.
+    #   network: pagedog_default
+    #
+    #   # Volumes to mount, as volume-or-path:/container/path.
+    #   binds:
+    #     - pagedog_reports:/reports
+    #
+    #   # How long a worker has to exit after a stop before it is killed.
+    #   stop_timeout: 10s
+
+# What a worker does with an incident. This process passes it to every
+# worker it runs, on the worker's command line.
+worker:
+  # The LLM the worker investigates with: one of these, with the key it
+  # takes from the worker's environment.
+  model:
+    # Claude, on the Anthropic API, under ANTHROPIC_API_KEY.
+    # claude:
+    #   # The model to ask, as the API names it.
+    #   name: claude-opus-5-5
+    #   # Most tokens one completion may produce.
+    #   max_tokens: 4096
+    #
+    # OpenAI, on the Responses API, under OPENAI_API_KEY.
+    # openai:
+    #   name: gpt-6-astra
+    #   max_tokens: 4096
+    #
+    # Gemini, on the Interactions API, under GEMINI_API_KEY.
+    # gemini:
+    #   name: gemini-4-hydrogen
+    #   max_tokens: 4096
+
+  # How many times the model is asked per incident before the worker gives up.
+  # max_turns: 10
+   
+  # The task given to the model, a Go text/template over the incident; the
+  # worker's own cmd/pagedog/task.md is the default and the place to start.
+  # Written here, or in a file this process reads and passes along.
+  # task: |
+  #   You are the on-call engineer. Investigate the incident below...
+  # task_file: /etc/pagedog/task.md
+
+  # What the model may look at, as a worker reaches it; any may be left
+  # out, and a tool the model has not got it cannot call.
+  tools:
+    # A Prometheus server: a PromQL range query, and the metric names.
+    # prometheus:
+    #   url: http://prometheus.internal:9090
+    #
+    # A Loki server: a LogQL range query, and the label names.
+    # loki:
+    #   url: http://loki.internal:3100
+    #
+    # And any MCP server: reached over HTTP, with the headers it wants on
+    # every request, or run by the worker as a child process that gets the
+    # variables named under env and nothing else. A header is written as
+    # itself or, for a secret, as {env: NAME}: the variable of the worker's
+    # environment that holds it, put there by the runtime's env above.
+    # tools keeps the model's list short; left out, every tool the server
+    # has is offered.
+    # mcp:
+    #   # Self-hosted prometheus MCP server.
+    #   - name: prometheus
+    #     url: http://prometheus-mcp:8080/mcp
+    #     tools:
+    #       - query
+    #       - range_query
+    #       - label_names
+    #       - label_values
+    #
+    #   # Grafana Cloud's hosted MCP server takes OAuth alone, which a
+    #   # worker has no browser for. Grafana's own mcp-grafana, in the
+    #   # worker's image, reaches a Cloud stack under a service account's
+    #   # token, and has a read-only switch.
+    #   - name: grafana
+    #     command: mcp-grafana
+    #     args: [--disable-write]
+    #     env: [GRAFANA_URL, GRAFANA_SERVICE_ACCOUNT_TOKEN]
+    #
+    #   # SigNoz Cloud's hosted MCP server, in the account's region, under
+    #   # a service account's key. It has write tools too: tools keeps the
+    #   # model to reading.
+    #   - name: signoz
+    #     url: https://mcp.us.signoz.cloud/mcp
+    #     headers:
+    #       X-SigNoz-URL: https://your-instance.signoz.cloud
+    #       SIGNOZ-API-KEY: {env: SIGNOZ_API_KEY}
+    #     tools:
+    #       - signoz_search_logs
+    #       - signoz_aggregate_logs
+    #       - signoz_search_traces
+    #       - signoz_get_trace_details
+    #       - signoz_query_metrics
+    #       - signoz_list_metrics
+    #       - signoz_list_services
+    #       - signoz_list_alerts
+    #       - signoz_get_alert
+
+  # Where the workers store their reports, and where the notifiers read
+  # them back from. The workers and this process must see the same place.
+  report:
+    fs:
+      dir: /var/lib/pagedog/reports
+
+# Where reports go; several of a kind are fine.
+notify:
+  # Back to incident.io, as an update on the incident, under an API key with
+  # the incident_updates.create scope. A report on an incident from another
+  # source is left alone.
+  # - incidentio:
+  #     url: https://api.incident.io
+  #     api_key: {env: INCIDENTIO_API_KEY}
+
+  # Back to PagerDuty, as a note on the incident, under a REST API key and
+  # from a user of the account, as the API wants a note to be. A report on
+  # an incident from another source is left alone.
+  # - pagerduty:
+  #     url: https://api.pagerduty.com
+  #     api_key: {env: PAGERDUTY_API_KEY}
+  #     from: oncall@example.com
+
+  # A line in this process's log.
+  # - log: {}
+
+  # JSON to a URL: the incident and where the report is, with its text when
+  # it is a file; a bearer token when the receiver wants one.
+  # - webhook:
+  #     url: https://example.com/pagedog
+  #     token: {env: WEBHOOK_TOKEN}
+
+  # A Slack channel, through an incoming webhook, whose URL is a secret.
+  # - slack:
+  #     url: {env: SLACK_WEBHOOK_URL}

@@ -1,0 +1,12 @@
+# The reports queue, named after this file. Fields are those of the API's
+# create-queue call: https://docs.spooler.sh/operations/createQueue
+
+# A report pagedog dies holding is back within this many seconds.
+leaseTimeoutSeconds: 30
+
+# Redeliveries before a report the notifiers keep refusing is failed.
+maxRetries: 3
+
+# A report's dedup key is its incident's: one sent twice within this window
+# is one report.
+dedupWindowSeconds: 60

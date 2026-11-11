@@ -1,0 +1,12 @@
+groups:
+  - name: demoapp
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(http_requests_total{job="demoapp", code=~"5.."}[1m])) > 0
+        for: 10s
+        labels:
+          severity: critical
+          service: demoapp
+        annotations:
+          summary: demoapp answers 5xx
+          description: demoapp answered {{ $value | printf "%.2f" }} 5xx per second over the last minute.

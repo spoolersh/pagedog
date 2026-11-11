@@ -1,0 +1,13 @@
+# The incidents queue, named after this file. Fields are those of the API's
+# create-queue call: https://docs.spooler.sh/operations/createQueue
+
+# A killed worker's incident is back within this many seconds: short, so
+# the redelivery is quick to watch. Workers renew while they run.
+leaseTimeoutSeconds: 30
+
+# Redeliveries before an incident is failed: a bound on model spend.
+maxRetries: 3
+
+# Alertmanager repeats a notification while an alert fires; within this
+# window a repeat is the same incident, not a new investigation.
+dedupWindowSeconds: 60

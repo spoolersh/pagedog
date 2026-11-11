@@ -1,0 +1,22 @@
+route:
+  receiver: pagedog
+  group_by: [alertname]
+  # Quick on purpose: the demo should page within seconds of the alert.
+  group_wait: 5s
+  group_interval: 30s
+  repeat_interval: 4h
+
+receivers:
+  - name: pagedog
+    webhook_configs:
+      - url: http://pagedog:7070/webhook/alertmanager
+        # A resolved alert is not an incident.
+        send_resolved: false
+        http_config:
+          authorization:
+            # The demo's token; pagedog gets the same as
+            # ALERTMANAGER_TOKEN in compose.yaml.
+            credentials: pagedog
+      # The demo app shows the alerts too, resolutions included.
+      - url: http://demoapp:8081/alert
+        send_resolved: true
