@@ -1,0 +1,40 @@
+// Every container's logs into Loki, labelled by container name.
+
+discovery.docker "containers" {
+  host = "unix:///var/run/docker.sock"
+  // Quick, so that a worker's logs are collected within seconds of its
+  // start: the container is gone once it exits.
+  refresh_interval = "5s"
+}
+
+discovery.relabel "containers" {
+  targets = []
+
+  // The stack's own containers and the workers pagedog runs; nothing else
+  // on the engine.
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(pagedog-.*|demoapp)"
+    action        = "keep"
+  }
+
+  rule {
+    source_labels = ["__meta_docker_container_name"]
+    regex         = "/(.*)"
+    target_label  = "container"
+  }
+}
+
+loki.source.docker "containers" {
+  host          = "unix:///var/run/docker.sock"
+  targets       = discovery.docker.containers.targets
+  labels        = {"job" = "docker"}
+  relabel_rules = discovery.relabel.containers.rules
+  forward_to    = [loki.write.loki.receiver]
+}
+
+loki.write "loki" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

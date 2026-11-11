@@ -1,0 +1,85 @@
+# The demo: a service that fails on request, the observability stack that
+# notices, and pagedog investigating with workers it runs as containers.
+#
+#   ANTHROPIC_API_KEY=... docker compose up --build
+#
+# then open http://127.0.0.1:8081 and press 500.
+
+name: pagedog
+
+services:
+  memspoolerd:
+    # The Spooler server in memory: any bearer token authenticates, nothing
+    # persists. Not published: only the stack talks to it.
+    image: spoolersh/memspoolerd
+    # Quiet: the demo's story is in pagedog's and the workers' logs.
+    command: ["--log.level", "WARN"]
+
+  pagedog:
+    build:
+      context: .
+      target: pagedog
+    image: pagedog
+    depends_on:
+      memspoolerd:
+        condition: service_healthy
+    command: ["--config", "/etc/pagedog/pagedog.yaml"]
+    environment:
+      SPOOLER_API_KEY: local
+      # The token Alertmanager sends; alertmanager.yml carries the same.
+      ALERTMANAGER_TOKEN: pagedog
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?set ANTHROPIC_API_KEY for the workers}
+    volumes:
+      - ./demo/pagedog.yaml:/etc/pagedog/pagedog.yaml:ro
+      # The launcher runs its workers as containers on this engine.
+      - /var/run/docker.sock:/var/run/docker.sock
+      # Where the workers put their reports, and the launcher reads them.
+      - reports:/reports
+
+  worker:
+    # Built here, run by pagedog: compose starts none of it.
+    build:
+      context: .
+      target: worker
+    image: pagedog-worker
+    deploy:
+      replicas: 0
+
+  demoapp:
+    build:
+      context: .
+      target: demoapp
+    image: pagedog-demoapp
+    # A fixed name, so its logs are {container="demoapp"} in Loki.
+    container_name: demoapp
+    command: ["--listen", ":8081"]
+    ports:
+      - "127.0.0.1:8081:8081"
+
+  prometheus:
+    image: prom/prometheus
+    volumes:
+      - ./demo/prometheus.yml:/etc/prometheus/prometheus.yml:ro
+      - ./demo/alerts.yml:/etc/prometheus/alerts.yml:ro
+    ports:
+      - "127.0.0.1:9090:9090"
+
+  alertmanager:
+    image: prom/alertmanager
+    volumes:
+      - ./demo/alertmanager.yml:/etc/alertmanager/alertmanager.yml:ro
+    ports:
+      - "127.0.0.1:9093:9093"
+
+  loki:
+    image: grafana/loki
+
+  alloy:
+    # Collects every container's logs into Loki.
+    image: grafana/alloy
+    volumes:
+      - ./demo/config.alloy:/etc/alloy/config.alloy:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+
+volumes:
+  reports:

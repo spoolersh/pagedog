@@ -1,0 +1,55 @@
+# Pagedog by hand, on one machine: the Spooler server in memory on
+# localhost, Alertmanager as the source, workers as child processes, the
+# reports in a directory. pagedog.yaml at the repository root documents
+# every setting.
+#
+#   docker run --rm -p 127.0.0.1:8080:8080 spoolersh/memspoolerd
+#   export SPOOLER_API_KEY=local ALERTMANAGER_TOKEN=secret ANTHROPIC_API_KEY=...
+#   pagedog --config demo/local.yaml
+#   curl -H "Authorization: Bearer secret" --json @testdata/alertmanager.json \
+#     http://127.0.0.1:7070/webhook/alertmanager
+
+spooler:
+  host: 127.0.0.1:8080
+  api_key: {env: SPOOLER_API_KEY}
+  no_tls: true
+  spool: default
+  incidents:
+    name: incidents
+    lease_timeout: 30s
+    max_retries: 3
+    dedup_window: 60s
+  reports:
+    name: reports
+    lease_timeout: 30s
+    dedup_window: 60s
+
+webhook:
+  listen: 127.0.0.1:7070
+  sources:
+    - alertmanager:
+        token: {env: ALERTMANAGER_TOKEN}
+
+workers:
+  max: 3
+  runtime:
+    exec:
+      path: worker
+      env:
+        PAGEDOG_SPOOLER_API_KEY: {env: SPOOLER_API_KEY}
+        ANTHROPIC_API_KEY: {env: ANTHROPIC_API_KEY}
+
+worker:
+  model:
+    claude: {}
+  tools:
+    prometheus:
+      url: http://127.0.0.1:9090
+    loki:
+      url: http://127.0.0.1:3100
+  report:
+    fs:
+      dir: reports
+
+notify:
+  - log: {}

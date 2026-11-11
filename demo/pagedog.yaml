@@ -1,0 +1,61 @@
+# Pagedog inside the compose stack: workers as containers on the stack's
+# network, reports on the shared volume, the demo app told about them.
+
+spooler:
+  host: memspoolerd:8080
+  api_key: {env: SPOOLER_API_KEY}
+  no_tls: true
+  spool: default
+
+  incidents:
+    name: incidents
+    max_retries: 3
+    lease_timeout: 30s
+    dedup_window: 60s
+
+  reports:
+    name: reports
+    max_retries: 3
+    lease_timeout: 30s
+    dedup_window: 60s
+
+webhook:
+  listen: :7070
+  sources:
+    - alertmanager:
+        token: {env: ALERTMANAGER_TOKEN}
+
+workers:
+  min: 0
+  max: 3
+  runtime:
+    docker:
+      image: pagedog-worker
+      network: pagedog_default
+      binds:
+        - pagedog_reports:/reports
+      env:
+        PAGEDOG_SPOOLER_API_KEY: {env: SPOOLER_API_KEY}
+        ANTHROPIC_API_KEY: {env: ANTHROPIC_API_KEY}
+
+worker:
+  max_turns: 10
+
+  model:
+    claude:
+      name: claude-opus-5-5
+
+  tools:
+    prometheus:
+      url: http://prometheus:9090
+    loki:
+      url: http://loki:3100
+
+  report:
+    fs:
+      dir: /reports
+
+notify:
+  - log: {}
+  - webhook:
+      url: http://demoapp:8081/report
