@@ -37,8 +37,10 @@ https://raw.githubusercontent.com/spoolersh/pagedog/main/:
   whole and choose among what it offers; the file you write is a subset of it,
   and a key it does not have does not exist.
 - `README.md`: the overview and the demo.
-- `demo/compose.yaml` and `demo/pagedog.yaml`: a whole stack with the docker
-  runtime, if that is what is wanted.
+- `examples/docker/compose.yaml` and `examples/docker/pagedog.yaml`: a whole
+  stack with the docker runtime, if that is what is wanted.
+- `examples/k8s`: the least Kubernetes deployment in one manifest, a pod with
+  the workers as its goroutines and the in-memory Spooler next to it.
 
 ## The binary and the image
 
@@ -167,10 +169,8 @@ notify:
       api_key: {env: INCIDENTIO_API_KEY}
 ```
 
-`demo/local.yaml` is the file for one machine: the in-memory Spooler on
-localhost, Alertmanager as the source, workers as child processes reading
-the same file. The reports are files the workers write and the server reads back, so a second
-pagedog instance needs the same directory mounted.
+With the `fs` store, the reports are files the workers write and the server
+reads back, so a second pagedog instance needs the same directory mounted.
 
 Secrets are never written as values. Each is where it comes from:
 `{env: NAME}`, `{file: PATH}` or `{exec: {cmd: COMMAND, args: [...]}}`. A
@@ -221,8 +221,8 @@ ask the user which before writing anything:
   service. Run it next to pagedog, bind its port to pagedog only, and set
   `spooler.host` to it with `no_tls: true` and any key, `local` by custom.
   Declare the two queues to it in files mounted at `/etc/spooler/queues.d`,
-  as the demo's `demo/queues.d` does, so they exist on every start; that
-  page documents the files.
+  as the demo's `examples/docker/queues.d` does, so they exist on every
+  start; that page documents the files.
 
 Either way the two queues named by `spooler.incidents` and
 `spooler.reports` exist before pagedog starts: pagedog creates none, and
@@ -232,7 +232,7 @@ variables pointing at it:
 
 ```sh
 docker run -d --rm -p 127.0.0.1:8080:8080 \
-  -v ./demo/queues.d:/etc/spooler/queues.d:ro spoolersh/memspoolerd
+  -v ./examples/docker/queues.d:/etc/spooler/queues.d:ro spoolersh/memspoolerd
 export SPOOLER_API=http://127.0.0.1:8080/v1
 export SPOOLER_KEY=local
 ```
@@ -297,8 +297,9 @@ among them, are read from: name there every variable the file's `worker`
 section names. Pick them only when the user wants workers that can be seen and
 killed one at a time, as the demo does. The docker runtime needs the engine
 socket mounted and the network and volume names the workers join, as
-`demo/pagedog.yaml` shows; it is not for Kubernetes, and no Kubernetes Job
-runtime exists.
+`examples/docker/pagedog.yaml` shows; it is not for Kubernetes, where
+`examples/k8s` runs the workers as goroutines, and no Kubernetes Job runtime
+exists.
 
 ## Deployment
 
@@ -307,10 +308,10 @@ default, an answer taken as given. Do not ask what an earlier answer settled,
 and do not assume incident.io or Claude; they are only the examples in the
 least file above. When the questions are done, write everything in one go.
 
-1. **Platform.** Kubernetes, systemd with the binary, Quadlet (Podman under
-   systemd), Docker Compose, plain `docker run`, or another, named. This
-   decides how the secrets, the persistent directory, the route and a Spooler
-   container are expressed.
+1. **Platform.** Kubernetes, starting from `examples/k8s`; systemd with the
+   binary; Quadlet (Podman under systemd); Docker Compose; plain `docker run`;
+   or another, named. This decides how the secrets, the persistent directory,
+   the route and a Spooler container are expressed.
 2. **Spooler.** The hosted one, with the API key from the console, or the
    in-memory image on the user's own machines, free to run for their own
    purposes per the local docs page: then a second container or unit next to

@@ -2,7 +2,7 @@
 # notices, and pagedog investigating with workers it runs as containers.
 # Self-contained: pagedog comes as its published image, the rest is here.
 #
-#   ANTHROPIC_API_KEY=... docker compose -f demo/compose.yaml up --build
+#   ANTHROPIC_API_KEY=... docker compose -f examples/docker/compose.yaml up --build
 #
 # then open http://127.0.0.1:8081 and press 500.
 

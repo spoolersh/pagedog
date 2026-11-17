@@ -1,0 +1,194 @@
+# Pagedog on Kubernetes, the least of it: the Spooler server in memory next to
+# it, Alertmanager paging from inside the cluster, Claude investigating with
+# the cluster's Prometheus and Loki, the workers as goroutines of the one pod,
+# the reports on a volume. The Secret is made by hand, as README.md says;
+# pagedog.yaml at the repository root documents every setting.
+
+# The two queues, declared to memspoolerd so they exist on every start:
+# https://docs.spooler.sh/local#declaring-queues
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: memspoolerd-queues
+data:
+  incidents.yaml: |
+    # A dead worker's incident is back within this many seconds.
+    # A worker renews while it runs.
+    leaseTimeoutSeconds: 60
+
+    # Redeliveries before an incident is failed: a bound on model spend.
+    maxRetries: 3
+
+    # A notification repeated within this window is the same incident.
+    dedupWindowSeconds: 300
+
+  reports.yaml: |
+    leaseTimeoutSeconds: 60
+    maxRetries: 3
+    dedupWindowSeconds: 300
+---
+# The Spooler server in memory: any bearer token authenticates, nothing
+# persists across a restart. Free to run for your own purposes, see
+# https://docs.spooler.sh/local; the hosted one is a host and a key away.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: memspoolerd
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: memspoolerd
+  template:
+    metadata:
+      labels:
+        app: memspoolerd
+    spec:
+      containers:
+        - name: memspoolerd
+          image: spoolersh/memspoolerd
+          ports:
+            - name: api
+              containerPort: 8080
+          volumeMounts:
+            - name: queues
+              mountPath: /etc/spooler/queues.d
+              readOnly: true
+      volumes:
+        - name: queues
+          configMap:
+            name: memspoolerd-queues
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: memspoolerd
+spec:
+  selector:
+    app: memspoolerd
+  ports:
+    - name: api
+      port: 8080
+      targetPort: api
+---
+# Pagedog's configuration, read at /etc/pagedog/pagedog.yaml. A change here
+# does not restart the pod: `kubectl rollout restart deployment/pagedog`.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pagedog
+data:
+  pagedog.yaml: |
+    spooler:
+      host: memspoolerd:8080
+      api_key: {env: SPOOLER_API_KEY}
+      no_tls: true
+      spool: default
+      # The two queues declared above.
+      incidents: incidents
+      reports: reports
+
+    webhook:
+      listen: :7070
+      sources:
+        - alertmanager:
+            token: {env: ALERTMANAGER_TOKEN}
+
+    # No workers section: the workers are goroutines of the server.
+
+    worker:
+      model:
+        claude:
+          api_key: {env: ANTHROPIC_API_KEY}
+      tools:
+        # As the cluster names them.
+        prometheus:
+          url: http://prometheus.monitoring.svc:9090
+        loki:
+          url: http://loki.monitoring.svc:3100
+      report:
+        fs:
+          dir: /var/lib/pagedog/reports
+
+    notify:
+      - log: {}
+---
+# Where the reports wait between a worker writing one and the server
+# delivering it; a restart in between must find it.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: pagedog-reports
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+# Pagedog refuses to start until the queues answer, so it restarts until
+# memspoolerd is up.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pagedog
+spec:
+  replicas: 1
+  # One pod at a time: the volume is ReadWriteOnce.
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: pagedog
+  template:
+    metadata:
+      labels:
+        app: pagedog
+    spec:
+      containers:
+        - name: pagedog
+          image: spoolersh/pagedog
+          args: [server, --config, /etc/pagedog/pagedog.yaml]
+          env:
+            # Any token authenticates to memspoolerd; a real key goes in the
+            # Secret with the others.
+            - name: SPOOLER_API_KEY
+              value: local
+
+          # Every key of the Secret as a variable: the file names them.
+          envFrom:
+            - secretRef:
+                name: pagedog
+
+          ports:
+            - name: webhook
+              containerPort: 7070
+          # Pagedog has no health endpoint yet; the webhook port answering is
+          # what there is.
+          readinessProbe:
+            tcpSocket:
+              port: webhook
+          volumeMounts:
+            - name: config
+              mountPath: /etc/pagedog
+              readOnly: true
+            - name: reports
+              mountPath: /var/lib/pagedog/reports
+      volumes:
+        - name: config
+          configMap:
+            name: pagedog
+        - name: reports
+          persistentVolumeClaim:
+            claimName: pagedog-reports
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: pagedog
+spec:
+  selector:
+    app: pagedog
+  ports:
+    - name: webhook
+      port: 7070
+      targetPort: webhook

@@ -1,6 +1,6 @@
 .git/
 _bin/
-demo/
+examples/
 dist/
 reports/
 worker

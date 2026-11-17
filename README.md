@@ -13,7 +13,9 @@ Fetches evidence, sniffs out incidents.
 
 ---
 
-Pagedog is a simple tool that adds LLM investigations to your incidents.
+Pagedog is a simple tool that investigates your incidents using the logs,
+metrics and tools you connect to your LLM, then sends findings to your existing
+incident workflow.
 
 Many teams today have it in one shape or another, so it's not rocket science –
 it's just an attempt to provide an open-source compilation of the approach –
@@ -78,11 +80,12 @@ and write me the deployment from my answers.
 The demo is built to illustrate how pagedog works. It brings up Prometheus,
 Alertmanager, Loki with Alloy collecting a simple HTTP server's logs, the
 Spooler message server, and pagedog, which runs its workers as containers next
-to them. The workers ask Claude; `demo/pagedog.yaml` is where to switch.
+to them. The workers ask Claude; `examples/docker/pagedog.yaml` is where to
+switch.
 
 ```sh
 export ANTHROPIC_API_KEY=...
-docker compose -f demo/compose.yaml up --build
+docker compose -f examples/docker/compose.yaml up --build
 ```
 
 Open [127.0.0.1:8081](http://127.0.0.1:8081). The page has a text field and two
@@ -95,8 +98,8 @@ buttons: one answers 200, the other 500. Type something, press 500, and watch:
 3. A moment later the report lands on the page; the text you typed is likely
    in it.
 
-`docker compose -f demo/compose.yaml down -v` stops everything and drops the
-reports volume. The stack pulls the `spoolersh/pagedog` image; to run the
+`docker compose -f examples/docker/compose.yaml down -v` stops everything and
+drops the reports volume. The stack pulls the `spoolersh/pagedog` image; to run the
 checkout instead, `make pagedog-image` builds it under that tag first.
 
 ## Running actually
@@ -124,7 +127,8 @@ investigation:
 - an [MCP](https://modelcontextprotocol.io) server
 - Prometheus and/or Loki instances, whose APIs pagedog reads directly
 
-Rather than one manifest for one of the many combinations, [SKILL.md](SKILL.md)
+[examples/k8s](examples/k8s) is the least Kubernetes deployment: one pod, the
+workers as its goroutines. For the other combinations, [SKILL.md](SKILL.md)
 states what pagedog needs from a platform, in the Agent Skills format: a
 runbook for you, and a skill for an assistant to write the deployment you want.
 
@@ -164,13 +168,29 @@ first, so it is discussed before it is written.
 
 ## FAQ
 
-#### Is it a cheeky Spooler lock-in?
+#### Can I operate this durably without the hosted service?
 
-No. The only thing pagedog expects of the queue is compatibility with Spooler's
-delivery semantics: leased messages, redelivery, atomic ack-and-send, and
-dedup. Those come from either hosted Spooler or from its in-memory server,
-`spoolersh/memspoolerd`, which [runs locally](https://docs.spooler.sh/local)
-and is free to run for your own purposes, production included.
+Not with the queue backends currently supported. Pagedog uses hosted Spooler
+or its local server, `spoolersh/memspoolerd`. The local server keeps messages
+in memory and loses them when the container exits. It is free to run for your
+own purposes, production included, but may not be provided to others or
+hosted as a service; see [Running locally](https://docs.spooler.sh/local).
+
+The supported option for durable queues is hosted Spooler; its guarantees
+depend on the spool's replication settings, as described in
+[Delivery semantics](https://docs.spooler.sh/delivery#durability).
+
+#### What would changing the queue require?
+
+Code changes: Spooler is the only queue integration today. Another backend
+would need to preserve the behavior pagedog relies on: leases and renewal,
+redelivery, deduplication, and the atomic handoff from an incident to its
+report. Spooler's [delivery docs](https://docs.spooler.sh/delivery) describe
+those semantics, including the ack-and-send operation used for that handoff.
+
+That means replacing the integration in `internal/spooler` and updating the
+server and worker wiring in `cmd/pagedog`, including the queue statistics used
+to scale workers. Changing the YAML alone is not enough.
 
 ## License
 

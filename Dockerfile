@@ -39,5 +39,6 @@ COPY --from=build /out/pagedog /usr/local/bin/
 ENTRYPOINT ["pagedog"]
 # A worker on the file the server copies in: what a container of this image
 # runs when the server gives it no command. A server is run as
-# `server --config /etc/pagedog/pagedog.yaml`, as demo/compose.yaml does.
+# `server --config /etc/pagedog/pagedog.yaml`, as examples/docker/compose.yaml
+# does.
 CMD ["worker", "--config", "/etc/pagedog/pagedog.yaml"]
