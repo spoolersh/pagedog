@@ -49,7 +49,7 @@ then delivered as a notification.
 
 Workers, if run outside the server process, are designed to be disposable: kill
 a worker at any time and its job is redelivered to another one; nothing is
-lost, nothing is done twice.
+lost.
 
 The LLM you choose uses the configured tools, so it can explore your
 observability stack, fetch runbooks and look up your source code during the
@@ -77,15 +77,17 @@ follow the skill's "Deployment" section: ask me its questions one at a time,
 and write me the deployment from my answers.
 ```
 
+<br/>
+
 ## Running locally
 
 The demo is built to illustrate how pagedog works. It brings up Prometheus,
 Alertmanager, Loki with Alloy collecting a simple HTTP server's logs, the
 Spooler message server, and pagedog, which runs its workers as containers next
-to them.
+to them. The workers ask Claude; `demo/pagedog.yaml` is where to switch.
 
 ```sh
-export <YOUR MODEL>_API_KEY=...
+export ANTHROPIC_API_KEY=...
 docker compose -f demo/compose.yaml up --build
 ```
 
@@ -110,7 +112,7 @@ checkout instead, `make pagedog-image` builds it under that tag first.
 Pagedog is one binary and one YAML file:
 - `pagedog server` serves the webhook, keeps the workers running and delivers
   the reports
-- `pagedog worker` is what being spun on demand, from the same binary reading
+- `pagedog worker` is what gets spun up on demand, from the same binary reading
   the same configuration file
 
 The binary comes from the
@@ -122,10 +124,10 @@ Around pagedog you would also need:
 - a Spooler message server, the hosted one or the free-to-run [in-memory
   image](https://docs.spooler.sh/local)
 - an API key for your LLM of choice
-- whatever pages you, as long as it can call a webhook: Alertmanager,
-  incident.io or PagerDuty, pointed at pagedog's `/webhook/<source>`
+- one of the pagers pagedog understands, Alertmanager, incident.io or
+  PagerDuty, pointed at pagedog's `/webhook/<source>`
 
-You would also need at least one of these reachable by your workers during an
+You would also want at least one of these reachable by your workers during an
 investigation:
 - an [MCP](https://modelcontextprotocol.io) server
 - Prometheus and/or Loki instances, whose APIs pagedog reads directly
@@ -168,8 +170,8 @@ named after what it talks to. For one to land it needs to:
 - follow the code style in [AGENTS.md](AGENTS.md), tests included;
 - be wired into the configuration in `cmd/pagedog`, with its key in
   [pagedog.yaml](pagedog.yaml) and the wiring tested;
-- be documented here, in "What's included" and "Configuration", and in
-  [SKILL.md](SKILL.md), so an assistant can deploy it.
+- be documented here, in "What's included", and in [SKILL.md](SKILL.md), so
+  an assistant can deploy it.
 
 For anything beyond a new one of those or a bug fix, please open an issue
 first, so it is discussed before it is written.

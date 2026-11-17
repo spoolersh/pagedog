@@ -36,8 +36,7 @@ https://raw.githubusercontent.com/spoolersh/pagedog/main/:
   default as a commented line, every alternative as a commented block. Read it
   whole and choose among what it offers; the file you write is a subset of it,
   and a key it does not have does not exist.
-- `README.md`: the overview, the demo, and "Configuration", the same choices in
-  prose with the least file that runs for real.
+- `README.md`: the overview and the demo.
 - `demo/compose.yaml` and `demo/pagedog.yaml`: a whole stack with the docker
   runtime, if that is what is wanted.
 
