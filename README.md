@@ -19,8 +19,6 @@ Many teams today have it in one shape or another, so it's not rocket science –
 it's just an attempt to provide an open-source compilation of the approach –
 hopefully the simplest one.
 
-<br/>
-
 ## :dog: Overview
 
 ```
@@ -63,8 +61,6 @@ mechanics – the queue powering pagedog.
 
 The [demo](#running-locally) is one `docker compose up` away.
 
-<br/>
-
 ## Prompt to deploy
 
 If you're in a hurry, paste this to your artificially intelligent agentic
@@ -76,8 +72,6 @@ https://raw.githubusercontent.com/spoolersh/pagedog/main/pagedog.yaml, then
 follow the skill's "Deployment" section: ask me its questions one at a time,
 and write me the deployment from my answers.
 ```
-
-<br/>
 
 ## Running locally
 
@@ -104,8 +98,6 @@ buttons: one answers 200, the other 500. Type something, press 500, and watch:
 `docker compose -f demo/compose.yaml down -v` stops everything and drops the
 reports volume. The stack pulls the `spoolersh/pagedog` image; to run the
 checkout instead, `make pagedog-image` builds it under that tag first.
-
-<br/>
 
 ## Running actually
 
@@ -136,8 +128,6 @@ Rather than one manifest for one of the many combinations, [SKILL.md](SKILL.md)
 states what pagedog needs from a platform, in the Agent Skills format: a
 runbook for you, and a skill for an assistant to write the deployment you want.
 
-<br/>
-
 ## What's included
 
 - **Sources**: Prometheus Alertmanager, incident.io, PagerDuty
@@ -150,16 +140,12 @@ runbook for you, and a skill for an assistant to write the deployment you want.
 Each is turned on by its key in the configuration; [pagedog.yaml](pagedog.yaml)
 documents every one.
 
-<br/>
-
 ## Configuration
 
 `pagedog server` reads one YAML file, `pagedog.yaml` by default, and takes three flags:
 `--config`, `--log-level` and `--no-color`. Everything else is in the file.
 
 Please read [pagedog.yaml](pagedog.yaml) as the full configuration registry.
-
-<br/>
 
 ## Contributing
 
@@ -176,8 +162,6 @@ named after what it talks to. For one to land it needs to:
 For anything beyond a new one of those or a bug fix, please open an issue
 first, so it is discussed before it is written.
 
-<br/>
-
 ## FAQ
 
 #### Is it a cheeky Spooler lock-in?
@@ -187,8 +171,6 @@ delivery semantics: leased messages, redelivery, atomic ack-and-send, and
 dedup. Those come from either hosted Spooler or from its in-memory server,
 `spoolersh/memspoolerd`, which [runs locally](https://docs.spooler.sh/local)
 and is free to run for your own purposes, production included.
-
-<br/>
 
 ## License
 
