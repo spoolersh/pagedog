@@ -93,6 +93,41 @@ other helper type, func, const or var go below them, at the bottom.
 `make test` and `make lint`, which is vet and govulncheck, clean before every
 hand-off.
 
+## Adding a component
+
+A component is a source, a notifier, a model, a tool, a report store or a
+worker runtime. Each is one package under `internal/`, the wiring in
+`cmd/pagedog`, and the documentation; nothing else changes.
+
+- **The package**, `internal/<system>`, the whole of the system in it, as
+  Layout says. It implements the domain's interface for its kind: a source is
+  a `webhook.IncidentSource`, served at `/webhook/<system>`; a notifier a
+  `pagedog.Notifier`; a report store a `pagedog.ReportStore`; a model an
+  `ai.Model`; a runtime a `runtime.Runtime`; a tool is one concrete `ai.Tool`
+  per operation (`RangeQueryTool`, `LabelsTool`) over a `Source` interface
+  that mirrors the client, no registry. Settings are exported fields with
+  "Zero means" defaults; no `http.Client` field, a private or the default
+  one; a trace struct as Tracing says. Tests beside it: `httptest` for an
+  HTTP API, stub sources for tools.
+- **The configuration**, `cmd/pagedog/config.go`: a `<system><Kind>Config`
+  struct and a pointer field of it in the kind's one-of (`sourceConfig`,
+  `notifierConfig`, `modelConfig`, `toolsConfig`, `reportConfig`,
+  `runtimeConfig`). The field set is the choice; there is no `type:` key. A
+  secret is a `pagedog_config.Secret`, a string that may be either a
+  `pagedog_config.Value`. `validate` names what is required under the
+  setting's path; `config_test.go` gets a parse case and an error case per
+  rule.
+- **The wiring**: the `switch` over the one-of in `server.go` for sources,
+  notifiers and the runtime, in `worker.go` for the model, the tools and the
+  report store; secrets read once through `unwrap` under the setting's path.
+  A line in `banner.go` for the kind, a secret rendered by `source()`, never
+  its value, and `banner_test.go` matching it.
+- **The documentation**: a commented block in `pagedog.yaml` in the file's own
+  style, its head says which; the line in README's "What's included"; the key
+  in SKILL.md's configuration list and the wizard question it belongs to.
+  `examples/` only when the demo should show it.
+- `make test` and `make lint` clean.
+
 ## Editing files
 
 Change project files only with the edit tool, one visible edit at a time, never

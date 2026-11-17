@@ -144,6 +144,10 @@ runbook for you, and a skill for an assistant to write the deployment you want.
 Each is turned on by its key in the configuration; [pagedog.yaml](pagedog.yaml)
 documents every one.
 
+> Missing yours? Each component is one package under `internal/`
+and a few wiring points, listed under "Adding a component" in
+[AGENTS.md](AGENTS.md). PRs are is welcome!
+
 ## Configuration
 
 `pagedog server` reads one YAML file, `pagedog.yaml` by default, and takes three flags:
@@ -158,10 +162,9 @@ report stores and worker runtimes: each is one package under `internal/`,
 named after what it talks to. For one to land it needs to:
 
 - follow the code style in [AGENTS.md](AGENTS.md), tests included;
-- be wired into the configuration in `cmd/pagedog`, with its key in
-  [pagedog.yaml](pagedog.yaml) and the wiring tested;
-- be documented here, in "What's included", and in [SKILL.md](SKILL.md), so
-  an assistant can deploy it.
+- touch every place its "Adding a component" section lists: the configuration
+  in `cmd/pagedog`, the key in [pagedog.yaml](pagedog.yaml), the line in
+  "What's included", and [SKILL.md](SKILL.md), so an assistant can deploy it.
 
 For anything beyond a new one of those or a bug fix, please open an issue
 first, so it is discussed before it is written.
