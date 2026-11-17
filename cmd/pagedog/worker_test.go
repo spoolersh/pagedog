@@ -247,6 +247,45 @@ func TestNewWorker(t *testing.T) {
 			},
 		},
 		{
+			name: "sends the bearer as the authorization header",
+			worker: workerConfig{
+				Model: claude,
+				Tools: toolsConfig{
+					MCP: []mcpToolConfig{
+						{
+							Name: "x",
+							URL:  "http://x/mcp",
+							Headers: map[string]pagedog_config.Value{
+								"X-Tenant": {
+									Literal: "acme",
+								},
+							},
+							Auth: &mcpAuthConfig{
+								Bearer: pagedog_config.Secret{
+									Env: "TEST_MCP_TOKEN",
+								},
+							},
+						},
+					},
+				},
+				Report: fs,
+			},
+			check: func(t *testing.T, w *worker) {
+				exp := []map[string]string{
+					{
+						"X-Tenant":      "acme",
+						"Authorization": "Bearer mcp-token",
+					},
+				}
+				if !cmp.Equal(exp, w.mcpHeaders) {
+					t.Errorf(
+						"mcp headers: %s",
+						cmp.Diff(exp, w.mcpHeaders),
+					)
+				}
+			},
+		},
+		{
 			name: "reads the github token",
 			worker: workerConfig{
 				Model: claude,

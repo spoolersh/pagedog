@@ -165,18 +165,24 @@ worker:
     # loki:
     #   url: http://loki.internal:3100
 
-    # MCP servers, each reached over HTTP with the headers it wants, or run
-    # by the worker as a child process with the variables named under env
-    # and nothing else. tools keeps the model's list short; if empty, every
-    # tool the server has.
+    # MCP servers, each reached over HTTP with the token and headers it
+    # wants, or run by the worker as a child process with the variables
+    # named under env and nothing else. tools keeps the model's list short;
+    # if empty, every tool the server has.
     #
     # mcp:
-    #   # A self-hosted Prometheus MCP server, under the header it wants.
+    #   # A self-hosted Prometheus MCP server, under a token and a tenant.
     #   - name: prometheus
     #     url: http://prometheus-mcp:8080/mcp
+    #     auth:
+    #       bearer: {env: PROMETHEUS_MCP_TOKEN}
     #     headers:
-    #       Authorization: {env: PROMETHEUS_MCP_TOKEN}
-    #     tools: [query, range_query, label_names, label_values]
+    #       X-Scope-OrgID: tenant-1
+    #     tools:
+    #       - query
+    #       - range_query
+    #       - label_names
+    #       - label_values
     #
     #   # Grafana's mcp-grafana, in the worker's image, reaching a Cloud
     #   # stack under a service account's token: Grafana Cloud's hosted
@@ -185,6 +191,20 @@ worker:
     #     command: mcp-grafana
     #     args: [--disable-write]
     #     env: [GRAFANA_URL, GRAFANA_SERVICE_ACCOUNT_TOKEN]
+    #
+    #   # GitHub's hosted server, the repos toolset read-only, to read the
+    #   # code under investigation under a fine-grained token with contents
+    #   # read. auth is the Authorization header's shorthand: the secret is
+    #   # the token alone, without the Bearer scheme.
+    #   - name: github
+    #     url: https://api.githubcopilot.com/mcp/x/repos/readonly
+    #     auth:
+    #       bearer: {env: GITHUB_MCP_TOKEN}
+    #     tools:
+    #       - search_code
+    #       - get_file_contents
+    #       - list_commits
+    #       - get_commit
 
   # Where the workers put their reports, and this process reads them from:
   # one of the two.

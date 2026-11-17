@@ -158,6 +158,16 @@ func newWorker(ctx context.Context, cfg *config) (*worker, error) {
 				return nil, err
 			}
 		}
+		if s.Auth != nil {
+			token, err := unwrap(ctx,
+				fmt.Sprintf("worker.tools.mcp[%d].auth.bearer", i),
+				s.Auth.Bearer,
+			)
+			if err != nil {
+				return nil, err
+			}
+			headers["Authorization"] = "Bearer " + token
+		}
 		w.mcpHeaders = append(w.mcpHeaders, headers)
 	}
 

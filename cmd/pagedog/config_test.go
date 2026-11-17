@@ -65,9 +65,10 @@ worker:
     mcp:
       - name: prometheus
         url: http://prometheus-mcp:8080/mcp
+        auth:
+          bearer: {env: PROMETHEUS_MCP_TOKEN}
         headers:
           X-Scope-OrgID: tenant-1
-          Authorization: {env: PROMETHEUS_MCP_TOKEN}
         tools: [query, range_query]
       - name: inventory
         command: /usr/lib/pagedog/inventory-tool
@@ -199,10 +200,10 @@ notify:
 							"X-Scope-OrgID": {
 								Literal: "tenant-1",
 							},
-							"Authorization": {
-								Secret: pagedog_config.Secret{
-									Env: "PROMETHEUS_MCP_TOKEN",
-								},
+						},
+						Auth: &mcpAuthConfig{
+							Bearer: pagedog_config.Secret{
+								Env: "PROMETHEUS_MCP_TOKEN",
 							},
 						},
 						Tools: []string{"query", "range_query"},
@@ -414,6 +415,21 @@ func TestParseConfigErrors(t *testing.T) {
 			name: "mcp headers on a command",
 			yaml: strings.Replace(minimal, "  report:\n", "  tools:\n    mcp:\n      - name: x\n        command: x\n        headers: {A: b}\n  report:\n", 1),
 			exp:  "worker.tools.mcp[0].headers: only for a url",
+		},
+		{
+			name: "mcp auth on a command",
+			yaml: strings.Replace(minimal, "  report:\n", "  tools:\n    mcp:\n      - name: x\n        command: x\n        auth: {bearer: {env: T}}\n  report:\n", 1),
+			exp:  "worker.tools.mcp[0].auth: only for a url",
+		},
+		{
+			name: "mcp auth without a scheme",
+			yaml: strings.Replace(minimal, "  report:\n", "  tools:\n    mcp:\n      - name: x\n        url: http://x/mcp\n        auth: {}\n  report:\n", 1),
+			exp:  "worker.tools.mcp[0].auth.bearer: required",
+		},
+		{
+			name: "mcp auth and an authorization header",
+			yaml: strings.Replace(minimal, "  report:\n", "  tools:\n    mcp:\n      - name: x\n        url: http://x/mcp\n        auth: {bearer: {env: T}}\n        headers: {authorization: x}\n  report:\n", 1),
+			exp:  "worker.tools.mcp[0].headers.authorization: auth sets it",
 		},
 		{
 			name: "report store without a directory",

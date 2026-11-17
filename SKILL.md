@@ -107,11 +107,11 @@ whole of it. Each choice is on by its key; this is everything there is:
   over the incident, written as itself or as `{file: PATH}` the worker
   reads; if empty, the built-in `cmd/pagedog/task.md`.
 - `worker.tools`: `prometheus` with `url`; `loki` with `url`; `mcp`, a list
-  of servers, each a `name` and either `url` with `headers`, written as
-  themselves or, for a secret, as where it comes from, or `command` with `args`
-  and `env`, a program the worker runs and talks to over its standard
-  streams, given only the variables named; and `tools`, which keeps the
-  model's menu short. Any may be left out; a tool the model has not got it
+  of servers, each a `name` and either `url` with `auth`, a `bearer` token
+  written as where it comes from, and `headers`, written as themselves or,
+  for a secret, as where it comes from, or `command` with `args` and `env`,
+  a program the worker runs and talks to over its standard streams, given
+  only the variables named; and `tools`, which keeps the model's menu short. Any may be left out; a tool the model has not got it
   cannot call.
 - `worker.report`: one of `fs` with `dir`, files in a directory, or
   `github` with `owner`, `repo` and `token`, a secret, each report an issue
@@ -183,9 +183,10 @@ worker:
     mcp:
       - name: example
         url: https://mcp.example.com/mcp
+        auth:
+          bearer: {env: EXAMPLE_TOKEN}
         headers:
           X-Tenant: acme
-          X-API-Key: {env: EXAMPLE_API_KEY}
         tools:
           - search_logs
           - query_metrics
@@ -318,8 +319,8 @@ everything in one go.
 5. **Model.** Claude, OpenAI or Gemini, and the model name when not the
    default `pagedog.yaml` shows; the key comes under the SDK's variable.
 6. **Tools.** Prometheus and its URL; Loki and its URL; MCP servers, for
-   each the URL and any headers, or the command, its arguments and the
-   variables it needs, and the tools to expose. A command server must be in
+   each the URL, its bearer token and any headers, or the command, its
+   arguments and the variables it needs, and the tools to expose. A command server must be in
    the worker's image: with goroutine workers that is pagedog's own image,
    which holds nothing but pagedog, so it means a derived image, or the
    exec runtime on a host that has the program.

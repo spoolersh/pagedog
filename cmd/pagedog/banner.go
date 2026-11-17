@@ -305,6 +305,9 @@ func mcpLine(m *mcpToolConfig) string {
 		for _, name := range slices.Sorted(maps.Keys(m.Headers)) {
 			sb.WriteString(", header " + name + " " + value(m.Headers[name]))
 		}
+		if m.Auth != nil {
+			sb.WriteString(", bearer " + source(m.Auth.Bearer))
+		}
 	} else {
 		sb.WriteString(strings.Join(append([]string{m.Command}, m.Args...), " "))
 		if len(m.Env) > 0 {

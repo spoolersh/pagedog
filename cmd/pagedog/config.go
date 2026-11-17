@@ -221,6 +221,10 @@ type mcpToolConfig struct {
 	// reads.
 	Headers map[string]pagedog_config.Value `yaml:"headers"`
 
+	// Auth is how the worker authenticates to URL; if empty, the headers
+	// alone do.
+	Auth *mcpAuthConfig `yaml:"auth"`
+
 	// Command is the server's program, for one the worker runs: a path in
 	// the worker's image, or a name on its PATH.
 	Command string `yaml:"command"`
@@ -236,6 +240,14 @@ type mcpToolConfig struct {
 	//
 	// Zero means all of them.
 	Tools []string `yaml:"tools"`
+}
+
+// mcpAuthConfig is how a worker authenticates to an MCP server reached over
+// HTTP: one scheme, with what it takes.
+type mcpAuthConfig struct {
+	// Bearer is the token sent as the Authorization header's bearer, read
+	// by the worker.
+	Bearer pagedog_config.Secret `yaml:"bearer"`
 }
 
 // prometheusToolConfig reads metrics from a Prometheus server.
@@ -564,6 +576,25 @@ func (m *mcpToolConfig) validate(path string) error {
 			"%s.headers: only for a url",
 			path,
 		))
+	}
+	if m.Auth != nil {
+		switch {
+		case m.URL == "":
+			errs = append(errs, fmt.Errorf(
+				"%s.auth: only for a url",
+				path,
+			))
+		default:
+			errs = append(errs, required(path+".auth.bearer", !m.Auth.Bearer.IsZero()))
+			for name := range m.Headers {
+				if strings.EqualFold(name, "Authorization") {
+					errs = append(errs, fmt.Errorf(
+						"%s.headers.%s: auth sets it",
+						path, name,
+					))
+				}
+			}
+		}
 	}
 	return errors.Join(errs...)
 }

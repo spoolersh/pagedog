@@ -241,9 +241,10 @@ worker:
     mcp:
       - name: example
         url: https://mcp.example.com/mcp
+        auth:
+          bearer: {env: EXAMPLE_TOKEN}
         headers:
           X-Tenant: acme
-          X-API-Key: {env: EXAMPLE_API_KEY}
         tools:
           - search_logs
           - query_metrics

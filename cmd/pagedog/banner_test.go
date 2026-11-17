@@ -85,10 +85,13 @@ func TestServerBanner(t *testing.T) {
 						Name: "prometheus",
 						URL:  "http://prometheus-mcp:8080/mcp",
 						Headers: map[string]pagedog_config.Value{
-							"Authorization": {
-								Secret: pagedog_config.Secret{
-									Env: "PROMETHEUS_MCP_TOKEN",
-								},
+							"X-Scope-OrgID": {
+								Literal: "tenant-1",
+							},
+						},
+						Auth: &mcpAuthConfig{
+							Bearer: pagedog_config.Secret{
+								Env: "PROMETHEUS_MCP_TOKEN",
 							},
 						},
 						Tools: []string{"query"},
@@ -155,8 +158,8 @@ func TestServerBanner(t *testing.T) {
 			exp:  `model: +claude claude-opus-5-5, max tokens 4096\nmodel key: +from file /run/secrets/anthropic\nturns: +10\ntask: +from file /etc/pagedog/task.md`,
 		},
 		{
-			name: "lists the tools, a secret header by its source",
-			exp:  `tool: +prometheus http://prometheus:9090\ntool: +mcp prometheus http://prometheus-mcp:8080/mcp, header Authorization from env PROMETHEUS_MCP_TOKEN, tools query`,
+			name: "lists the tools, the bearer by its source",
+			exp:  `tool: +prometheus http://prometheus:9090\ntool: +mcp prometheus http://prometheus-mcp:8080/mcp, header X-Scope-OrgID tenant-1, bearer from env PROMETHEUS_MCP_TOKEN, tools query`,
 		},
 		{
 			name: "names the store and the command its token comes from",
