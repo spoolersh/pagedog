@@ -168,29 +168,21 @@ first, so it is discussed before it is written.
 
 ## FAQ
 
-#### Can I operate this durably without the hosted service?
+#### Can I operate this _durably_ without the hosted service?
 
-Not with the queue backends currently supported. Pagedog uses hosted Spooler
-or its local server, `spoolersh/memspoolerd`. The local server keeps messages
-in memory and loses them when the container exits. It is free to run for your
-own purposes, production included, but may not be provided to others or
-hosted as a service; see [Running locally](https://docs.spooler.sh/local).
-
-The supported option for durable queues is hosted Spooler; its guarantees
-depend on the spool's replication settings, as described in
-[Delivery semantics](https://docs.spooler.sh/delivery#durability).
+Not with the queue backends currently supported. Pagedog uses hosted Spooler or
+its local server, `spoolersh/memspoolerd`. The local server keeps messages in
+memory and loses them when the container exits. It is free to run for your own
+purposes, production included, but may not be provided to others or hosted as a
+service; see [Running locally](https://docs.spooler.sh/local).
 
 #### What would changing the queue require?
 
-Code changes: Spooler is the only queue integration today. Another backend
-would need to preserve the behavior pagedog relies on: leases and renewal,
-redelivery, deduplication, and the atomic handoff from an incident to its
-report. Spooler's [delivery docs](https://docs.spooler.sh/delivery) describe
-those semantics, including the ack-and-send operation used for that handoff.
-
-That means replacing the integration in `internal/spooler` and updating the
-server and worker wiring in `cmd/pagedog`, including the queue statistics used
-to scale workers. Changing the YAML alone is not enough.
+Spooler is the only queue integration today. Another backend would need to
+preserve the behavior pagedog relies on: leases and renewal, redelivery,
+deduplication, and the atomic handoff from an incident to its report. Spooler's
+[delivery docs](https://docs.spooler.sh/delivery) describe those semantics,
+including the ack-and-send operation used for that handoff.
 
 ## License
 
