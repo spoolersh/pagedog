@@ -9,6 +9,7 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"sync"
 
 	google_github "github.com/google/go-github/v93/github"
 	"github.com/spoolersh/pagedog"
@@ -27,12 +28,35 @@ var _ pagedog.ReportStore = (*ReportStore)(nil)
 type ReportStore struct {
 	Trace ReportStoreTrace
 
-	// Client is the GitHub API client, as [google_github.NewClient] makes it,
-	// with a token that may write the repository's issues.
-	Client *google_github.Client
+	// Token is the token the API is asked with, one that may write the
+	// repository's issues.
+	Token string
+
+	// BaseURL is where the API is, for a GitHub Enterprise server.
+	//
+	// Zero means GitHub's own.
+	BaseURL string
 
 	Owner string
 	Repo  string
+
+	once   sync.Once
+	client *google_github.Client
+	err    error
+}
+
+// init makes the client, once; what failed then fails every call.
+func (s *ReportStore) init() error {
+	s.once.Do(func() {
+		opts := []google_github.ClientOptionsFunc{
+			google_github.WithAuthToken(s.Token),
+		}
+		if s.BaseURL != "" {
+			opts = append(opts, google_github.WithURLs(&s.BaseURL, &s.BaseURL))
+		}
+		s.client, s.err = google_github.NewClient(opts...)
+	})
+	return s.err
 }
 
 // Store opens an issue for the incident, or updates the one opened for it
@@ -42,6 +66,9 @@ func (s *ReportStore) Store(ctx context.Context, inc pagedog.Incident, r pagedog
 	done := s.Trace.onStore(inc)
 	defer func() { done(u, updated, err) }()
 
+	if err := s.init(); err != nil {
+		return nil, err
+	}
 	if inc.Key == "" {
 		return nil, errors.New("incident has no key")
 	}
@@ -53,7 +80,7 @@ func (s *ReportStore) Store(ctx context.Context, inc pagedog.Incident, r pagedog
 	}
 	if issue != nil {
 		updated = true
-		issue, _, err = s.Client.Issues.Update(ctx,
+		issue, _, err = s.client.Issues.Update(ctx,
 			s.Owner,
 			s.Repo,
 			issue.GetNumber(),
@@ -62,7 +89,7 @@ func (s *ReportStore) Store(ctx context.Context, inc pagedog.Incident, r pagedog
 			},
 		)
 	} else {
-		issue, _, err = s.Client.Issues.Create(ctx,
+		issue, _, err = s.client.Issues.Create(ctx,
 			s.Owner,
 			s.Repo,
 			google_github.CreateIssueRequest{
@@ -87,11 +114,14 @@ func (s *ReportStore) Load(ctx context.Context, u *url.URL) (r pagedog.Report, e
 	done := s.Trace.onLoad(u)
 	defer func() { done(err) }()
 
+	if err := s.init(); err != nil {
+		return r, err
+	}
 	number, err := s.number(u)
 	if err != nil {
 		return r, err
 	}
-	issue, _, err := s.Client.Issues.Get(ctx, s.Owner, s.Repo, number)
+	issue, _, err := s.client.Issues.Get(ctx, s.Owner, s.Repo, number)
 	if err != nil {
 		return r, err
 	}
@@ -121,7 +151,7 @@ func (s *ReportStore) find(ctx context.Context, key string) (*google_github.Issu
 		},
 	}
 	for {
-		issues, resp, err := s.Client.Issues.ListByRepo(ctx, s.Owner, s.Repo, opts)
+		issues, resp, err := s.client.Issues.ListByRepo(ctx, s.Owner, s.Repo, opts)
 		if err != nil {
 			return nil, err
 		}

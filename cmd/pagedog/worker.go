@@ -15,14 +15,8 @@ import (
 	"text/template"
 	"time"
 
-	"github.com/anthropics/anthropic-sdk-go/v2"
-	anthropic_option "github.com/anthropics/anthropic-sdk-go/v2/option"
-	google_github "github.com/google/go-github/v93/github"
-	"github.com/openai/openai-go/v3"
-	openai_option "github.com/openai/openai-go/v3/option"
 	"github.com/spoolersh/pagedog"
 	"github.com/spoolersh/spooler-go"
-	"google.golang.org/genai"
 
 	"github.com/spoolersh/pagedog/internal/ai"
 	"github.com/spoolersh/pagedog/internal/claude"
@@ -320,17 +314,13 @@ func (w *worker) run(ctx context.Context, logger *slog.Logger) error {
 		}
 
 	case r.GitHub != nil:
-		client, err := google_github.NewClient(google_github.WithAuthToken(w.githubToken))
-		if err != nil {
-			return err
-		}
 		reportStore = &pagedog_github.ReportStore{
 			Trace: pagedog_github.LoggerReportStoreTrace(logger.With(
 				"component", "report",
 			)),
-			Client: client,
-			Owner:  r.GitHub.Owner,
-			Repo:   r.GitHub.Repo,
+			Token: w.githubToken,
+			Owner: r.GitHub.Owner,
+			Repo:  r.GitHub.Repo,
 		}
 
 	default:
@@ -343,36 +333,22 @@ func (w *worker) run(ctx context.Context, logger *slog.Logger) error {
 	var model ai.Model
 	switch m := w.model; {
 	case m.Claude != nil:
-		var opts []anthropic_option.RequestOption
-		if w.modelAPIKey != "" {
-			opts = append(opts, anthropic_option.WithAPIKey(w.modelAPIKey))
-		}
 		model = &claude.Model{
-			Client:    anthropic.NewClient(opts...),
-			Name:      anthropic.Model(m.Claude.Name),
+			APIKey:    w.modelAPIKey,
+			Name:      m.Claude.Name,
 			MaxTokens: m.Claude.MaxTokens,
 		}
 
 	case m.OpenAI != nil:
-		var opts []openai_option.RequestOption
-		if w.modelAPIKey != "" {
-			opts = append(opts, openai_option.WithAPIKey(w.modelAPIKey))
-		}
 		model = &pagedog_openai.Model{
-			Client:    openai.NewClient(opts...),
+			APIKey:    w.modelAPIKey,
 			Name:      m.OpenAI.Name,
 			MaxTokens: m.OpenAI.MaxTokens,
 		}
 
 	case m.Gemini != nil:
-		client, err := genai.NewClient(ctx, &genai.ClientConfig{
-			APIKey: w.modelAPIKey,
-		})
-		if err != nil {
-			return err
-		}
 		model = &gemini.Model{
-			Client:    client,
+			APIKey:    w.modelAPIKey,
 			Name:      m.Gemini.Name,
 			MaxTokens: m.Gemini.MaxTokens,
 		}

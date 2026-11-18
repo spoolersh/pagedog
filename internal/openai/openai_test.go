@@ -9,8 +9,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	"github.com/openai/openai-go/v3"
-	"github.com/openai/openai-go/v3/option"
 	"github.com/spoolersh/pagedog/internal/ai"
 )
 
@@ -53,10 +51,8 @@ func TestComplete(t *testing.T) {
 	defer srv.Close()
 
 	m := &Model{
-		Client: openai.NewClient(
-			option.WithBaseURL(srv.URL),
-			option.WithAPIKey("test"),
-		),
+		APIKey:  "test",
+		BaseURL: srv.URL,
 	}
 	tools := []ai.ToolSpec{
 		{

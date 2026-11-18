@@ -10,7 +10,6 @@ import (
 
 	"github.com/google/go-cmp/cmp"
 	"github.com/spoolersh/pagedog/internal/ai"
-	"google.golang.org/genai"
 )
 
 func TestComplete(t *testing.T) {
@@ -52,18 +51,9 @@ func TestComplete(t *testing.T) {
 	defer srv.Close()
 
 	ctx := context.Background()
-	client, err := genai.NewClient(ctx, &genai.ClientConfig{
-		APIKey:  "test",
-		Backend: genai.BackendGeminiAPI,
-		HTTPOptions: genai.HTTPOptions{
-			BaseURL: srv.URL,
-		},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
 	m := &Model{
-		Client: client,
+		APIKey:  "test",
+		BaseURL: srv.URL,
 	}
 	tools := []ai.ToolSpec{
 		{

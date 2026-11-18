@@ -27,8 +27,15 @@ var _ ai.Model = (*Model)(nil)
 // Model is an [ai.Model] on the Gemini Interactions API. The conversation
 // is the agent's: nothing is stored on the server.
 type Model struct {
-	// Client is the Gemini API client, as [genai.NewClient] makes it.
-	Client *genai.Client
+	// APIKey is the key the API is asked with.
+	//
+	// Zero means the SDK's own variables, GEMINI_API_KEY or GOOGLE_API_KEY.
+	APIKey string
+
+	// BaseURL is where the API is.
+	//
+	// Zero means the API's own.
+	BaseURL string
 
 	// Name is the model to ask, as the API names it.
 	//
@@ -40,6 +47,10 @@ type Model struct {
 	// Zero means [DefaultMaxTokens].
 	MaxTokens int
 
+	once   sync.Once
+	client *genai.Client
+	err    error
+
 	// replays keeps what the API answered with tool calls, by the first
 	// call's id, to say it back as it was: a thinking model wants its
 	// thought steps back with the calls' results.
@@ -47,8 +58,26 @@ type Model struct {
 	replays map[string][]interactions.Step
 }
 
+// init makes the client, once; what failed then fails every call.
+func (m *Model) init() error {
+	m.once.Do(func() {
+		// The client outlives any one call: the context is not a call's.
+		m.client, m.err = genai.NewClient(context.Background(), &genai.ClientConfig{
+			APIKey:  m.APIKey,
+			Backend: genai.BackendGeminiAPI,
+			HTTPOptions: genai.HTTPOptions{
+				BaseURL: m.BaseURL,
+			},
+		})
+	})
+	return m.err
+}
+
 // Complete implements [ai.Model].
 func (m *Model) Complete(ctx context.Context, req ai.CompleteRequest) (ai.CompleteResult, error) {
+	if err := m.init(); err != nil {
+		return ai.CompleteResult{}, err
+	}
 	// A result names its call's tool, which only the call says.
 	names := make(map[string]string)
 	for _, msg := range req.Messages {
@@ -82,7 +111,7 @@ func (m *Model) Complete(ctx context.Context, req ai.CompleteRequest) (ai.Comple
 			Parameters:  t.Input,
 		}))
 	}
-	res, err := m.Client.Interactions.Create(ctx, operations.CreateInteractionRequest{
+	res, err := m.client.Interactions.Create(ctx, operations.CreateInteractionRequest{
 		Body: operations.NewCreateInteractionRequestBody(body),
 	})
 	if err != nil {

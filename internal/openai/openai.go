@@ -9,6 +9,7 @@ import (
 	"sync"
 
 	"github.com/openai/openai-go/v3"
+	"github.com/openai/openai-go/v3/option"
 	"github.com/openai/openai-go/v3/responses"
 	"github.com/openai/openai-go/v3/shared"
 	"github.com/spoolersh/pagedog/internal/ai"
@@ -26,8 +27,15 @@ var _ ai.Model = (*Model)(nil)
 // Model is an [ai.Model] on the OpenAI Responses API. The conversation is
 // the agent's: nothing is stored on the server.
 type Model struct {
-	// Client is the OpenAI API client, as [openai.NewClient] makes it.
-	Client openai.Client
+	// APIKey is the key the API is asked with.
+	//
+	// Zero means the SDK's own variable, OPENAI_API_KEY.
+	APIKey string
+
+	// BaseURL is where the API is.
+	//
+	// Zero means the API's own.
+	BaseURL string
 
 	// Name is the model to ask, as the API names it.
 	//
@@ -39,6 +47,9 @@ type Model struct {
 	// Zero means [DefaultMaxTokens].
 	MaxTokens int
 
+	once   sync.Once
+	client openai.Client
+
 	// replays keeps what the API answered with tool calls, by the first
 	// call's id, to say it back as it was: a reasoning model wants its
 	// reasoning items back with the calls' results.
@@ -46,8 +57,23 @@ type Model struct {
 	replays map[string][]responses.ResponseInputItemUnionParam
 }
 
+// init makes the client, once.
+func (m *Model) init() {
+	m.once.Do(func() {
+		var opts []option.RequestOption
+		if m.APIKey != "" {
+			opts = append(opts, option.WithAPIKey(m.APIKey))
+		}
+		if m.BaseURL != "" {
+			opts = append(opts, option.WithBaseURL(m.BaseURL))
+		}
+		m.client = openai.NewClient(opts...)
+	})
+}
+
 // Complete implements [ai.Model].
 func (m *Model) Complete(ctx context.Context, req ai.CompleteRequest) (ai.CompleteResult, error) {
+	m.init()
 	params := responses.ResponseNewParams{
 		Model:           shared.ResponsesModel(cmp.Or(m.Name, DefaultModel)),
 		MaxOutputTokens: openai.Int(int64(cmp.Or(m.MaxTokens, DefaultMaxTokens))),
@@ -83,7 +109,7 @@ func (m *Model) Complete(ctx context.Context, req ai.CompleteRequest) (ai.Comple
 			},
 		})
 	}
-	resp, err := m.Client.Responses.New(ctx, params)
+	resp, err := m.client.Responses.New(ctx, params)
 	if err != nil {
 		return ai.CompleteResult{}, err
 	}

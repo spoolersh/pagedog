@@ -27,7 +27,12 @@ in the shape the Go project gives a server at
 - A package under `internal/` is named after the dependency it wraps
   (`spooler`, `claude`, `loki`, `prometheus`, `mcp`, `docker`) or the one thing
   it does (`ai`, `webhook`), and holds all of it: the Loki client and the
-  agent's tools over Loki are both `internal/loki`. Nothing nests below it.
+  agent's tools over Loki are both `internal/loki`. The tree is by
+  dependency and never by interface, because a system plays whatever roles
+  it is given: incident.io and PagerDuty are each a source and a notifier,
+  and Prometheus may grow a second role tomorrow. A package's address does
+  not change with its roles, so nothing nests below it, not even
+  `ai/claude` for a package that is nothing but an `ai.Model` today.
 - No helper package: no `tools`, `util`, `common`. What two packages would
   share belongs to the domain or to the package it is about, or is written
   twice.
@@ -107,7 +112,9 @@ worker runtime. Each is one package under `internal/`, the wiring in
   per operation (`RangeQueryTool`, `LabelsTool`) over a `Source` interface
   that mirrors the client, no registry. Settings are exported fields with
   "Zero means" defaults; no `http.Client` field, a private or the default
-  one; a trace struct as Tracing says. Tests beside it: `httptest` for an
+  one; no type of an SDK's in the API, the package makes its client from the
+  settings once, on the first call, and keeps it; a trace struct as Tracing
+  says. Tests beside it: `httptest` for an
   HTTP API, stub sources for tools.
 - **The configuration**, `cmd/pagedog/config.go`: a `<system><Kind>Config`
   struct and a pointer field of it in the kind's one-of (`sourceConfig`,

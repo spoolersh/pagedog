@@ -9,8 +9,6 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/anthropics/anthropic-sdk-go/v2"
-	"github.com/anthropics/anthropic-sdk-go/v2/option"
 	"github.com/google/go-cmp/cmp"
 	"github.com/spoolersh/pagedog/internal/ai"
 )
@@ -56,10 +54,8 @@ func TestComplete(t *testing.T) {
 	defer srv.Close()
 
 	m := &Model{
-		Client: anthropic.NewClient(
-			option.WithBaseURL(srv.URL),
-			option.WithAPIKey("test-key"),
-		),
+		APIKey:  "test-key",
+		BaseURL: srv.URL,
 	}
 	tools := []ai.ToolSpec{
 		{

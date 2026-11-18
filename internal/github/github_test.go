@@ -10,7 +10,6 @@ import (
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
-	google_github "github.com/google/go-github/v93/github"
 	"github.com/spoolersh/pagedog"
 )
 
@@ -19,16 +18,11 @@ func TestReportStore(t *testing.T) {
 	srv := httptest.NewServer(repo.handler())
 	defer srv.Close()
 
-	client, err := google_github.NewClient(
-		google_github.WithURLs(google_github.Ptr(srv.URL+"/"), google_github.Ptr(srv.URL+"/")),
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
 	s := &ReportStore{
-		Client: client,
-		Owner:  "o",
-		Repo:   "r",
+		Token:   "test",
+		BaseURL: srv.URL + "/",
+		Owner:   "o",
+		Repo:    "r",
 	}
 	inc := pagedog.Incident{
 		Key:      "alertmanager/a1b2/2026-11-09T10:00:00Z",
@@ -151,6 +145,30 @@ func TestLoadRefuses(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestBaseURLRefused(t *testing.T) {
+	// A base URL the client cannot take fails every call, the same way.
+	s := &ReportStore{
+		Token:   "test",
+		BaseURL: "://nowhere",
+		Owner:   "o",
+		Repo:    "r",
+	}
+	ctx := context.Background()
+	inc := pagedog.Incident{
+		Key: "k",
+	}
+	if _, err := s.Store(ctx, inc, pagedog.Report{}); err == nil {
+		t.Error("Store(): nil; want an error")
+	}
+	u, err := url.Parse("https://github.com/o/r/issues/1")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := s.Load(ctx, u); err == nil {
+		t.Error("Load(): nil; want an error")
 	}
 }
 

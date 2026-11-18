@@ -12,7 +12,6 @@ import (
 	"os"
 	"time"
 
-	google_github "github.com/google/go-github/v93/github"
 	"github.com/spoolersh/pagedog"
 	"github.com/spoolersh/pagedog/internal/alertmanager"
 	pagedog_config "github.com/spoolersh/pagedog/internal/config"
@@ -464,17 +463,13 @@ func reportStore(ctx context.Context, cfg reportConfig, logger *slog.Logger) (pa
 		if err != nil {
 			return nil, err
 		}
-		client, err := google_github.NewClient(google_github.WithAuthToken(token))
-		if err != nil {
-			return nil, err
-		}
 		return &pagedog_github.ReportStore{
 			Trace: pagedog_github.LoggerReportStoreTrace(logger.With(
 				"component", "report",
 			)),
-			Client: client,
-			Owner:  cfg.GitHub.Owner,
-			Repo:   cfg.GitHub.Repo,
+			Token: token,
+			Owner: cfg.GitHub.Owner,
+			Repo:  cfg.GitHub.Repo,
 		}, nil
 	default:
 		// parseConfig() checks that a store is set.

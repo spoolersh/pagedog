@@ -5,8 +5,10 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"sync"
 
 	"github.com/anthropics/anthropic-sdk-go/v2"
+	"github.com/anthropics/anthropic-sdk-go/v2/option"
 	"github.com/spoolersh/pagedog/internal/ai"
 )
 
@@ -15,31 +17,56 @@ import (
 const DefaultMaxTokens = 4096
 
 // DefaultModel is the model asked when [Model.Name] is zero.
-const DefaultModel = anthropic.ModelClaudeOpus5_5
+const DefaultModel = string(anthropic.ModelClaudeOpus5_5)
 
 var _ ai.Model = (*Model)(nil)
 
 // Model is an [ai.Model] on the Anthropic Messages API.
 type Model struct {
-	// Client is the Anthropic API client, as [anthropic.NewClient] makes it.
-	Client anthropic.Client
+	// APIKey is the key the API is asked with.
+	//
+	// Zero means the SDK's own variable, ANTHROPIC_API_KEY.
+	APIKey string
 
-	// Name is the model to ask, as the API names it:
-	// [anthropic.ModelClaudeOpus5_5] and the like.
+	// BaseURL is where the API is.
+	//
+	// Zero means the API's own.
+	BaseURL string
+
+	// Name is the model to ask, as the API names it: "claude-opus-5-5" and
+	// the like.
 	//
 	// Zero means [DefaultModel].
-	Name anthropic.Model
+	Name string
 
 	// MaxTokens bounds the tokens one completion may produce.
 	//
 	// Zero means [DefaultMaxTokens].
 	MaxTokens int
+
+	once   sync.Once
+	client anthropic.Client
+}
+
+// init makes the client, once.
+func (m *Model) init() {
+	m.once.Do(func() {
+		var opts []option.RequestOption
+		if m.APIKey != "" {
+			opts = append(opts, option.WithAPIKey(m.APIKey))
+		}
+		if m.BaseURL != "" {
+			opts = append(opts, option.WithBaseURL(m.BaseURL))
+		}
+		m.client = anthropic.NewClient(opts...)
+	})
 }
 
 // Complete implements [ai.Model].
 func (m *Model) Complete(ctx context.Context, req ai.CompleteRequest) (ai.CompleteResult, error) {
+	m.init()
 	params := anthropic.MessageNewParams{
-		Model:     cmp.Or(m.Name, DefaultModel),
+		Model:     anthropic.Model(cmp.Or(m.Name, DefaultModel)),
 		MaxTokens: int64(cmp.Or(m.MaxTokens, DefaultMaxTokens)),
 	}
 	for _, msg := range req.Messages {
@@ -65,7 +92,7 @@ func (m *Model) Complete(ctx context.Context, req ai.CompleteRequest) (ai.Comple
 			},
 		})
 	}
-	resp, err := m.Client.Messages.New(ctx, params)
+	resp, err := m.client.Messages.New(ctx, params)
 	if err != nil {
 		return ai.CompleteResult{}, err
 	}
