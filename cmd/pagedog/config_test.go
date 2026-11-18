@@ -74,6 +74,7 @@ worker:
         command: /usr/lib/pagedog/inventory-tool
         args: [--verbose]
         env: [HOME]
+        tools: [list]
   report:
     fs:
       dir: /reports
@@ -213,6 +214,7 @@ notify:
 						Command: "/usr/lib/pagedog/inventory-tool",
 						Args:    []string{"--verbose"},
 						Env:     []string{"HOME"},
+						Tools:   []string{"list"},
 					},
 				},
 			},
@@ -430,6 +432,11 @@ func TestParseConfigErrors(t *testing.T) {
 			name: "mcp auth and an authorization header",
 			yaml: strings.Replace(minimal, "  report:\n", "  tools:\n    mcp:\n      - name: x\n        url: http://x/mcp\n        auth: {bearer: {env: T}}\n        headers: {authorization: x}\n  report:\n", 1),
 			exp:  "worker.tools.mcp[0].headers.authorization: auth sets it",
+		},
+		{
+			name: "mcp server without tools",
+			yaml: strings.Replace(minimal, "  report:\n", "  tools:\n    mcp:\n      - name: x\n        url: http://x/mcp\n  report:\n", 1),
+			exp:  "worker.tools.mcp[0].tools: required",
 		},
 		{
 			name: "report store without a directory",

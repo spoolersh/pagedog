@@ -2,13 +2,17 @@ package main
 
 import (
 	"context"
+	"io"
+	"net/http"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	pagedog_config "github.com/spoolersh/pagedog/internal/config"
+	pagedog_mcp "github.com/spoolersh/pagedog/internal/mcp"
 )
 
 func TestNewWorker(t *testing.T) {
@@ -334,6 +338,69 @@ func TestNewWorker(t *testing.T) {
 				t.Fatal(err)
 			}
 			tc.check(t, w)
+		})
+	}
+}
+
+func TestMCPClient(t *testing.T) {
+	t.Setenv("TEST_MCP_HOME", "/home/x")
+	opts := cmp.Options{
+		cmpopts.IgnoreUnexported(pagedog_mcp.Client{}),
+		cmp.Comparer(func(a, b io.Writer) bool {
+			return a == b
+		}),
+	}
+	for _, tc := range []struct {
+		name    string
+		server  mcpToolConfig
+		headers map[string]string
+		exp     *pagedog_mcp.Client
+	}{
+		{
+			name: "reaches a url with the headers read",
+			server: mcpToolConfig{
+				Name: "x",
+				URL:  "http://x/mcp",
+			},
+			headers: map[string]string{
+				"X-Tenant":      "acme",
+				"Authorization": "Bearer t",
+			},
+			exp: &pagedog_mcp.Client{
+				Name: "pagedog-worker",
+				URL:  "http://x/mcp",
+				Header: http.Header{
+					"X-Tenant":      {"acme"},
+					"Authorization": {"Bearer t"},
+				},
+				Stderr: os.Stderr,
+			},
+		},
+		{
+			name: "runs a command with the variables named that are set",
+			server: mcpToolConfig{
+				Name:    "x",
+				Command: "tool",
+				Args:    []string{"-v"},
+				Env:     []string{"TEST_MCP_HOME", "TEST_MCP_UNSET"},
+			},
+			exp: &pagedog_mcp.Client{
+				Name:    "pagedog-worker",
+				Command: "tool",
+				Args:    []string{"-v"},
+				Env:     []string{"TEST_MCP_HOME=/home/x"},
+				Stderr:  os.Stderr,
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			act := mcpClient("pagedog-worker", &tc.server, tc.headers)
+			if !cmp.Equal(tc.exp, act, opts) {
+				t.Errorf(
+					"client: %s",
+					cmp.Diff(tc.exp, act, opts),
+				)
+			}
 		})
 	}
 }

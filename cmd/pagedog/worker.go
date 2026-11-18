@@ -11,7 +11,6 @@ import (
 	"log/slog"
 	"net/http"
 	"os"
-	"os/exec"
 	"strings"
 	"text/template"
 	"time"
@@ -19,7 +18,6 @@ import (
 	"github.com/anthropics/anthropic-sdk-go/v2"
 	anthropic_option "github.com/anthropics/anthropic-sdk-go/v2/option"
 	google_github "github.com/google/go-github/v93/github"
-	"github.com/modelcontextprotocol/go-sdk/mcp"
 	"github.com/openai/openai-go/v3"
 	openai_option "github.com/openai/openai-go/v3/option"
 	"github.com/spoolersh/pagedog"
@@ -32,7 +30,6 @@ import (
 	pagedog_fs "github.com/spoolersh/pagedog/internal/fs"
 	"github.com/spoolersh/pagedog/internal/gemini"
 	pagedog_github "github.com/spoolersh/pagedog/internal/github"
-	"github.com/spoolersh/pagedog/internal/httputil"
 	"github.com/spoolersh/pagedog/internal/loki"
 	pagedog_mcp "github.com/spoolersh/pagedog/internal/mcp"
 	pagedog_openai "github.com/spoolersh/pagedog/internal/openai"
@@ -147,28 +144,9 @@ func newWorker(ctx context.Context, cfg *config) (*worker, error) {
 		)
 	}
 
-	for i, s := range cfg.Worker.Tools.MCP {
-		headers := make(map[string]string, len(s.Headers))
-		for name, v := range s.Headers {
-			headers[name], err = unwrap(ctx,
-				fmt.Sprintf("worker.tools.mcp[%d].headers.%s", i, name),
-				v,
-			)
-			if err != nil {
-				return nil, err
-			}
-		}
-		if s.Auth != nil {
-			token, err := unwrap(ctx,
-				fmt.Sprintf("worker.tools.mcp[%d].auth.bearer", i),
-				s.Auth.Bearer,
-			)
-			if err != nil {
-				return nil, err
-			}
-			headers["Authorization"] = "Bearer " + token
-		}
-		w.mcpHeaders = append(w.mcpHeaders, headers)
+	w.mcpHeaders, err = mcpHeaders(ctx, cfg.Worker.Tools.MCP)
+	if err != nil {
+		return nil, err
 	}
 
 	if g := cfg.Worker.Report.GitHub; g != nil {
@@ -204,6 +182,62 @@ func anySet(names []string) bool {
 		}
 	}
 	return false
+}
+
+// mcpHeaders reads the headers of each MCP server, the bearer token as the
+// Authorization header among them, from where the file says.
+func mcpHeaders(ctx context.Context, servers []mcpToolConfig) ([]map[string]string, error) {
+	all := make([]map[string]string, 0, len(servers))
+	for i, s := range servers {
+		headers := make(map[string]string, len(s.Headers))
+		for name, v := range s.Headers {
+			var err error
+			headers[name], err = unwrap(ctx,
+				fmt.Sprintf("worker.tools.mcp[%d].headers.%s", i, name),
+				v,
+			)
+			if err != nil {
+				return nil, err
+			}
+		}
+		if s.Auth != nil {
+			token, err := unwrap(ctx,
+				fmt.Sprintf("worker.tools.mcp[%d].auth.bearer", i),
+				s.Auth.Bearer,
+			)
+			if err != nil {
+				return nil, err
+			}
+			headers["Authorization"] = "Bearer " + token
+		}
+		all = append(all, headers)
+	}
+	return all, nil
+}
+
+// mcpClient is the client of an MCP server the file describes, with its
+// headers read, named to the server as name. A command server gets the
+// variables named for it, and nothing else of this process's.
+func mcpClient(name string, s *mcpToolConfig, headers map[string]string) *pagedog_mcp.Client {
+	c := &pagedog_mcp.Client{
+		Name:    name,
+		URL:     s.URL,
+		Command: s.Command,
+		Args:    s.Args,
+		Stderr:  os.Stderr,
+	}
+	if s.URL != "" {
+		c.Header = make(http.Header, len(headers))
+		for name, v := range headers {
+			c.Header.Set(name, v)
+		}
+	}
+	for _, name := range s.Env {
+		if v, has := os.LookupEnv(name); has {
+			c.Env = append(c.Env, name+"="+v)
+		}
+	}
+	return c
 }
 
 // workerCommand is pagedog worker: a [worker] as a process of its own,
@@ -382,64 +416,17 @@ func (w *worker) run(ctx context.Context, logger *slog.Logger) error {
 		)
 	}
 	for i, s := range w.tools.MCP {
-		var transport mcp.Transport
-		switch {
-		case s.URL != "":
-			header := make(http.Header, len(s.Headers))
-			for name, v := range w.mcpHeaders[i] {
-				header.Set(name, v)
-			}
-			transport = &mcp.StreamableClientTransport{
-				Endpoint: s.URL,
-				HTTPClient: &http.Client{
-					Transport: &httputil.HeaderTransport{
-						Header: header,
-					},
-				},
-			}
-		case s.Command != "":
-			cmd := exec.Command(s.Command, s.Args...)
-			// The server gets the variables named for it, and nothing else
-			// of this process's.
-			cmd.Env = make([]string, 0, len(s.Env))
-			for _, name := range s.Env {
-				if v, has := os.LookupEnv(name); has {
-					cmd.Env = append(cmd.Env, name+"="+v)
-				}
-			}
-			cmd.Stderr = os.Stderr
-			transport = &mcp.CommandTransport{
-				Command: cmd,
-			}
-
-		default:
-			// parseConfig() checks that one of the two is set.
-			return fmt.Errorf(
-				"mcp server %q: no url and no command",
-				s.Name,
-			)
-		}
-		client := mcp.NewClient(&mcp.Implementation{
-			Name:    "pagedog-worker",
-			Version: "0",
-		}, nil)
-		session, err := client.Connect(ctx, transport, nil)
+		client := mcpClient("pagedog-worker", &s, w.mcpHeaders[i])
+		ts, err := client.Tools(ctx, s.Tools)
 		if err != nil {
 			return fmt.Errorf(
 				"mcp server %q: %w",
 				s.Name, err,
 			)
 		}
-		// The session lasts as long as this process; a child process server
-		// is stopped with it.
-		defer session.Close()
-		ts, err := pagedog_mcp.Tools(ctx, session, s.Tools)
-		if err != nil {
-			return fmt.Errorf(
-				"mcp server %q: %w",
-				s.Name, err,
-			)
-		}
+		// The connection lasts as long as this process; a child process
+		// server is stopped with it.
+		defer client.Close()
 		names := make([]string, len(ts))
 		for i, t := range ts {
 			names[i] = t.Spec().Name

@@ -122,8 +122,9 @@ whole of it. Each choice is on by its key; this is everything there is:
   written as where it comes from, and `headers`, written as themselves or,
   for a secret, as where it comes from, or `command` with `args` and `env`,
   a program the worker runs and talks to over its standard streams, given
-  only the variables named; and `tools`, which keeps the model's menu short. Any may be left out; a tool the model has not got it
-  cannot call.
+  only the variables named; and `tools`, the ones the model may call, which
+  is required. Any of the three may be left out; a tool the model has not
+  got it cannot call.
 - `worker.report`: one of `fs` with `dir`, files in a directory, or
   `github` with `owner`, `repo` and `token`, a secret, each report an issue
   of the repository labelled pagedog, the same incident updating its issue.
@@ -182,9 +183,10 @@ the shell with `docker run`, `LoadCredential=` or `LoadCredentialEncrypted=`
 under systemd with `{file: /run/credentials/pagedog.service/NAME}`, a
 `Secret=` line in a Quadlet unit.
 
-An MCP server's `tools` list keeps the model's menu short; if empty, the
-model gets every tool the server has, which for a server that can write is
-the way to keep the model reading:
+An MCP server's `tools` list is required: the model gets the tools named and
+no other, so nothing is granted by omission, which for a server that can
+write is what keeps the model reading. The names are the server's own, as
+its documentation or an MCP inspector lists them:
 
 ```yaml
 worker:
@@ -329,7 +331,8 @@ least file above. When the questions are done, write everything in one go.
    `pagedog.yaml` shows; the key comes under the SDK's variable.
 6. **Tools.** Prometheus and its URL; Loki and its URL; MCP servers, for each
    the URL, its bearer token and any headers, or the command, its arguments and
-   the variables it needs, and the tools to expose. A command server must be in
+   the variables it needs, and the tools to expose, which are required, by the
+   names the server gives them. A command server must be in
    the worker's image: with goroutine workers that is pagedog's own image,
    which holds nothing but pagedog, so it means a derived image, or the exec
    runtime on a host that has the program.

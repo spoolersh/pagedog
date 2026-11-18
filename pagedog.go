@@ -56,13 +56,10 @@ type Report struct {
 	Text string
 }
 
-// ReportStore keeps reports where people and other systems find them: an
-// issue tracker, an object store, a directory.
+// ReportStore persists incident reports that can be retrieved later.
 type ReportStore interface {
-	// Store keeps the report of inc under the incident's key and returns
-	// where it is. The incident names and titles the report and is not
-	// kept: the queue carries it. The same incident stored again lands in
-	// the same place: a redelivered job must not open a second issue.
+	// Store keeps the report of the incident under its key and returns its
+	// URI. The same incident stored again overrides anything stored before.
 	Store(ctx context.Context, inc Incident, r Report) (*url.URL, error)
 
 	// Load returns the report Store kept at u. A URL this store did not

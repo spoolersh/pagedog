@@ -167,8 +167,9 @@ worker:
 
     # MCP servers, each reached over HTTP with the token and headers it
     # wants, or run by the worker as a child process with the variables
-    # named under env and nothing else. tools keeps the model's list short;
-    # if empty, every tool the server has.
+    # named under env and nothing else. tools names the ones the model may
+    # call, of all the server has, and is required: nothing is granted by
+    # omission.
     #
     # mcp:
     #   # A self-hosted Prometheus MCP server, under a token and a tenant.
@@ -191,6 +192,13 @@ worker:
     #     command: mcp-grafana
     #     args: [--disable-write]
     #     env: [GRAFANA_URL, GRAFANA_SERVICE_ACCOUNT_TOKEN]
+    #     tools:
+    #       - query_prometheus
+    #       - list_prometheus_metric_names
+    #       - query_loki_logs
+    #       - list_loki_label_names
+    #       - search_dashboards
+    #       - alerting_rules_read
     #
     #   # GitHub's hosted server, the repos toolset read-only, to read the
     #   # code under investigation under a fine-grained token with contents

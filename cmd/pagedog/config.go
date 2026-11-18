@@ -236,9 +236,8 @@ type mcpToolConfig struct {
 	// which is all it gets.
 	Env []string `yaml:"env"`
 
-	// Tools names the tools offered to the model, of all the server has.
-	//
-	// Zero means all of them.
+	// Tools names the tools offered to the model, of all the server has:
+	// those, and no other.
 	Tools []string `yaml:"tools"`
 }
 
@@ -570,6 +569,8 @@ func (m *mcpToolConfig) validate(path string) error {
 			{"url", m.URL != ""},
 			{"command", m.Command != ""},
 		}),
+		// Nothing is granted by omission: the list is the grant.
+		required(path+".tools", len(m.Tools) > 0),
 	}
 	if len(m.Headers) > 0 && m.URL == "" {
 		errs = append(errs, fmt.Errorf(

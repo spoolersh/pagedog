@@ -3,7 +3,10 @@ package mcp
 import (
 	"context"
 	"encoding/json"
+	"net/http"
+	"net/http/httptest"
 	"strings"
+	"sync"
 	"testing"
 
 	"github.com/google/go-cmp/cmp"
@@ -39,7 +42,7 @@ func TestTools(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			ts, err := Tools(context.Background(), session, tc.names)
+			ts, err := tools(context.Background(), session, tc.names)
 			if tc.expErr != "" {
 				if err == nil {
 					t.Fatal("Tools(): nil; want an error")
@@ -70,7 +73,7 @@ func TestTools(t *testing.T) {
 }
 
 func TestToolSpec(t *testing.T) {
-	ts, err := Tools(context.Background(), connect(t), []string{"echo"})
+	ts, err := tools(context.Background(), connect(t), []string{"echo"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -97,7 +100,7 @@ func TestToolSpec(t *testing.T) {
 }
 
 func TestToolCall(t *testing.T) {
-	ts, err := Tools(context.Background(), connect(t), nil)
+	ts, err := tools(context.Background(), connect(t), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -151,6 +154,88 @@ func TestToolCall(t *testing.T) {
 	}
 }
 
+func TestClientTools(t *testing.T) {
+	var (
+		mu     sync.Mutex
+		seen   http.Header
+		server = newServer()
+	)
+	handler := mcp.NewStreamableHTTPHandler(func(*http.Request) *mcp.Server {
+		return server
+	}, nil)
+	srv := httptest.NewServer(http.HandlerFunc(func(res http.ResponseWriter, req *http.Request) {
+		mu.Lock()
+		seen = req.Header.Clone()
+		mu.Unlock()
+		handler.ServeHTTP(res, req)
+	}))
+	defer srv.Close()
+
+	for _, tc := range []struct {
+		name   string
+		client *Client
+
+		// expErr is a part of the error's text; empty means no error.
+		expErr string
+	}{
+		{
+			name: "reaches a server over http, with the headers",
+			client: &Client{
+				Name: "test-client",
+				URL:  srv.URL,
+				Header: http.Header{
+					"X-Tenant": {"acme"},
+				},
+			},
+		},
+		{
+			name: "refuses a client with no url and no command",
+			client: &Client{
+				Name: "test-client",
+			},
+			expErr: "no url and no command",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			ts, err := tc.client.Tools(context.Background(), []string{"echo"})
+			if tc.expErr != "" {
+				if err == nil {
+					t.Fatal("Tools(): nil; want an error")
+				}
+				if act := err.Error(); !strings.Contains(act, tc.expErr) {
+					t.Errorf(
+						"error: %q; want it to contain %q",
+						act, tc.expErr,
+					)
+				}
+				return
+			}
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer tc.client.Close()
+			act, err := ts[0].Call(context.Background(), []byte(`{"text":"hi"}`))
+			if err != nil {
+				t.Fatal(err)
+			}
+			if exp := "hi"; act != exp {
+				t.Errorf(
+					"output: %q; want %q",
+					act, exp,
+				)
+			}
+			mu.Lock()
+			defer mu.Unlock()
+			if act, exp := seen.Get("X-Tenant"), "acme"; act != exp {
+				t.Errorf(
+					"X-Tenant header: %q; want %q",
+					act, exp,
+				)
+			}
+		})
+	}
+}
+
 type echoInput struct {
 	Text string `json:"text" jsonschema:"what to echo"`
 }
@@ -159,6 +244,27 @@ type echoInput struct {
 // returns a session on it.
 func connect(t *testing.T) *mcp.ClientSession {
 	ctx := context.Background()
+	server := newServer()
+	st, ct := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(ctx, st, nil); err != nil {
+		t.Fatal(err)
+	}
+	client := mcp.NewClient(&mcp.Implementation{
+		Name:    "test-client",
+		Version: "0",
+	}, nil)
+	session, err := client.Connect(ctx, ct, nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() {
+		session.Close()
+	})
+	return session
+}
+
+// newServer is a server with two tools, echo and fail.
+func newServer() *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "test",
 		Version: "0",
@@ -188,20 +294,5 @@ func connect(t *testing.T) *mcp.ClientSession {
 			},
 		}, nil, nil
 	})
-	st, ct := mcp.NewInMemoryTransports()
-	if _, err := server.Connect(ctx, st, nil); err != nil {
-		t.Fatal(err)
-	}
-	client := mcp.NewClient(&mcp.Implementation{
-		Name:    "test-client",
-		Version: "0",
-	}, nil)
-	session, err := client.Connect(ctx, ct, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	t.Cleanup(func() {
-		session.Close()
-	})
-	return session
+	return server
 }
